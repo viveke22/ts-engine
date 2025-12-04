@@ -22,7 +22,7 @@ console.log(mod_c);
 
 let mod_d = 20;
 let mod_e = mod_d % 5;
-console.log("Modulo result (20 % 5):");
+console.log("Modulo result (20 % 5):" + 1 + "h");
 console.log(mod_e);
 
 let x1 = 10;
