@@ -29,3 +29,4 @@ let x1 = 10;
 console.log(x1);
 let x2 = 20;
 console.log(x2);
+export { };

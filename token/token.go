@@ -28,8 +28,10 @@ const (
 	LT = "<"
 	GT = ">"
 
-	EQ     = "=="
-	NOT_EQ = "!="
+	EQ            = "=="
+	NOT_EQ        = "!="
+	EQ_STRICT     = "==="
+	NOT_EQ_STRICT = "!=="
 
 	// Delimiters
 	COMMA     = ","
@@ -49,6 +51,7 @@ const (
 	IF       = "IF"
 	ELSE     = "ELSE"
 	RETURN   = "RETURN"
+	EXPORT   = "EXPORT"
 )
 
 var keywords = map[string]TokenType{
@@ -59,6 +62,7 @@ var keywords = map[string]TokenType{
 	"if":       IF,
 	"else":     ELSE,
 	"return":   RETURN,
+	"export":   EXPORT,
 }
 
 func LookupIdent(ident string) TokenType {

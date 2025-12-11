@@ -50,12 +50,18 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 	case *ast.BlockStatement:
 		return evalBlockStatement(node, env)
 
+	case *ast.IfExpression:
+		return evalIfExpression(node, env)
+
 	case *ast.ReturnStatement:
 		val := Eval(node.ReturnValue, env)
 		if isError(val) {
 			return val
 		}
 		return &object.ReturnValue{Value: val}
+
+	case *ast.ExportStatement:
+		return NULL
 
 	case *ast.LetStatement:
 		val := Eval(node.Value, env)
@@ -150,10 +156,42 @@ func evalInfixExpression(operator string, left, right object.Object) object.Obje
 		return nativeBoolToBooleanObject(left == right)
 	case operator == "!=":
 		return nativeBoolToBooleanObject(left != right)
+	case operator == "===":
+		return nativeBoolToBooleanObject(left == right && left.Type() == right.Type())
+	case operator == "!==":
+		return nativeBoolToBooleanObject(left != right || left.Type() != right.Type())
 	case left.Type() != right.Type():
 		return newError("type mismatch: %s %s %s", left.Type(), operator, right.Type())
 	default:
 		return newError("unknown operator: %s %s %s", left.Type(), operator, right.Type())
+	}
+}
+
+func evalIfExpression(ie *ast.IfExpression, env *object.Environment) object.Object {
+	condition := Eval(ie.Condition, env)
+	if isError(condition) {
+		return condition
+	}
+
+	if isTruthy(condition) {
+		return Eval(ie.Consequence, env)
+	} else if ie.Alternative != nil {
+		return Eval(ie.Alternative, env)
+	} else {
+		return NULL
+	}
+}
+
+func isTruthy(obj object.Object) bool {
+	switch obj {
+	case NULL:
+		return false
+	case TRUE:
+		return true
+	case FALSE:
+		return false
+	default:
+		return true
 	}
 }
 
@@ -202,19 +240,33 @@ func evalIntegerInfixExpression(operator string, left, right object.Object) obje
 		return nativeBoolToBooleanObject(leftVal == rightVal)
 	case "!=":
 		return nativeBoolToBooleanObject(leftVal != rightVal)
+	case "===":
+		return nativeBoolToBooleanObject(leftVal == rightVal)
+	case "!==":
+		return nativeBoolToBooleanObject(leftVal != rightVal)
 	default:
 		return newError("unknown operator: %s %s %s", left.Type(), operator, right.Type())
 	}
 }
 
 func evalStringInfixExpression(operator string, left, right object.Object) object.Object {
-	if operator != "+" {
-		return newError("unknown operator: %s %s %s", left.Type(), operator, right.Type())
-	}
-
 	leftVal := left.(*object.String).Value
 	rightVal := right.(*object.String).Value
-	return &object.String{Value: leftVal + rightVal}
+
+	switch operator {
+	case "+":
+		return &object.String{Value: leftVal + rightVal}
+	case "==":
+		return nativeBoolToBooleanObject(leftVal == rightVal)
+	case "!=":
+		return nativeBoolToBooleanObject(leftVal != rightVal)
+	case "===":
+		return nativeBoolToBooleanObject(leftVal == rightVal)
+	case "!==":
+		return nativeBoolToBooleanObject(leftVal != rightVal)
+	default:
+		return newError("unknown operator: %s %s %s", left.Type(), operator, right.Type())
+	}
 }
 
 func evalStringConcatenation(left, right object.Object) object.Object {

@@ -85,6 +85,16 @@ func (rs *ReturnStatement) String() string {
 	return out.String()
 }
 
+type ExportStatement struct {
+	Token token.Token // the 'export' token
+}
+
+func (es *ExportStatement) statementNode()       {}
+func (es *ExportStatement) TokenLiteral() string { return es.Token.Literal }
+func (es *ExportStatement) String() string {
+	return "export {};"
+}
+
 type ExpressionStatement struct {
 	Token      token.Token // the first token of the expression
 	Expression Expression
@@ -177,6 +187,31 @@ func (ie *InfixExpression) String() string {
 	out.WriteString(" " + ie.Operator + " ")
 	out.WriteString(ie.Right.String())
 	out.WriteString(")")
+
+	return out.String()
+}
+
+type IfExpression struct {
+	Token       token.Token // The 'if' token
+	Condition   Expression
+	Consequence *BlockStatement
+	Alternative *BlockStatement
+}
+
+func (ie *IfExpression) expressionNode()      {}
+func (ie *IfExpression) TokenLiteral() string { return ie.Token.Literal }
+func (ie *IfExpression) String() string {
+	var out bytes.Buffer
+
+	out.WriteString("if")
+	out.WriteString(ie.Condition.String())
+	out.WriteString(" ")
+	out.WriteString(ie.Consequence.String())
+
+	if ie.Alternative != nil {
+		out.WriteString("else ")
+		out.WriteString(ie.Alternative.String())
+	}
 
 	return out.String()
 }
