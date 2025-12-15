@@ -39,6 +39,15 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		return evalPrefixExpression(node.Operator, right)
 
 	case *ast.InfixExpression:
+		// Special handling for dot operator to avoid evaluating the property as a variable
+		if node.Operator == "." {
+			left := Eval(node.Left, env)
+			if isError(left) {
+				return left
+			}
+			return evalDotIndexExpression(left, node.Right)
+		}
+
 		left := Eval(node.Left, env)
 		if isError(left) {
 			return left
@@ -187,6 +196,8 @@ func evalInfixExpression(operator string, left, right object.Object) object.Obje
 		return nativeBoolToBooleanObject(left == right && left.Type() == right.Type())
 	case operator == "!==":
 		return nativeBoolToBooleanObject(left != right || left.Type() != right.Type())
+	case operator == "!==":
+		return nativeBoolToBooleanObject(left != right || left.Type() != right.Type())
 	case left.Type() != right.Type():
 		return newError("type mismatch: %s %s %s", left.Type(), operator, right.Type())
 	default:
@@ -296,6 +307,26 @@ func evalStringInfixExpression(operator string, left, right object.Object) objec
 	}
 }
 
+func evalDotIndexExpression(left object.Object, rightNode ast.Node) object.Object {
+	if left.Type() == object.HASH_OBJ {
+		hash := left.(*object.Hash)
+
+		// Right node should be an identifier for dot notation
+		ident, ok := rightNode.(*ast.Identifier)
+		if !ok {
+			return newError("expected identifier after dot, got %T", rightNode)
+		}
+
+		key := ident.Value
+		val, ok := hash.Pairs[key]
+		if !ok {
+			return NULL
+		}
+		return val
+	}
+	return newError("property access not supported on %s", left.Type())
+}
+
 func evalStringConcatenation(left, right object.Object) object.Object {
 	var leftVal, rightVal string
 
@@ -383,16 +414,20 @@ func newError(format string, a ...interface{}) *object.Error {
 	return &object.Error{Message: fmt.Sprintf(format, a...)}
 }
 
-var builtins = map[string]*object.Builtin{
-	"console.log": {
-		Fn: func(args ...object.Object) object.Object {
-			for _, arg := range args {
-				fmt.Println(arg.Inspect())
-			}
-			return NULL
+var builtins = map[string]object.Object{
+	"console": &object.Hash{
+		Pairs: map[string]object.Object{
+			"log": &object.Builtin{
+				Fn: func(args ...object.Object) object.Object {
+					for _, arg := range args {
+						fmt.Println(arg.Inspect())
+					}
+					return NULL
+				},
+			},
 		},
 	},
-	"fetch": {
+	"fetch": &object.Builtin{
 		Fn: http.Fetch,
 	},
 }

@@ -1,9 +1,15 @@
 console.log("Fetching example.com...");
-// Standard TS fetch returns Promise<Response>, engine returns number.
-// We use an intermediate 'any' variable to bridge the type gap without using 'as'.
-let raw: any = await fetch("https://httpbin.org/status/500");
-let status: number = raw;
+// Standard TS fetch returns Promise<Response>. Engine now returns a Hash object with status, ok, statusText.
+let res: any = await fetch("https://example.com/l");
+
+// Access properties
+let status: number = res.status;
+let ok: boolean = res.ok;
+let msg: string = res.statusText;
+
 console.log("Status Code:", status);
+console.log("OK:", ok);
+console.log("Status Text:", msg);
 
 if (status === 200) {
     console.log("Success!");

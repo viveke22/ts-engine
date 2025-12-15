@@ -21,6 +21,10 @@ func Fetch(args ...object.Object) object.Object {
 	}
 	defer resp.Body.Close()
 
-	// For now, just return the status code
-	return &object.Integer{Value: int64(resp.StatusCode)}
+	pairs := make(map[string]object.Object)
+	pairs["status"] = &object.Integer{Value: int64(resp.StatusCode)}
+	pairs["ok"] = &object.Boolean{Value: resp.StatusCode >= 200 && resp.StatusCode < 300}
+	pairs["statusText"] = &object.String{Value: resp.Status}
+
+	return &object.Hash{Pairs: pairs}
 }
