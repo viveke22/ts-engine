@@ -195,7 +195,7 @@ type IfExpression struct {
 	Token       token.Token // The 'if' token
 	Condition   Expression
 	Consequence *BlockStatement
-	Alternative *BlockStatement
+	Alternative Node
 }
 
 func (ie *IfExpression) expressionNode()      {}
