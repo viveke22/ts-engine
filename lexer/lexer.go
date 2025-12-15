@@ -68,7 +68,15 @@ func (l *Lexer) NextToken() token.Token {
 			tok = newToken(token.BANG, l.ch)
 		}
 	case '/':
-		tok = newToken(token.SLASH, l.ch)
+		if l.peekChar() == '/' {
+			l.skipSingleLineComment()
+			return l.NextToken()
+		} else if l.peekChar() == '*' {
+			l.skipMultiLineComment()
+			return l.NextToken()
+		} else {
+			tok = newToken(token.SLASH, l.ch)
+		}
 	case '%':
 		tok = newToken(token.MOD, l.ch)
 	case '*':
@@ -119,6 +127,28 @@ func (l *Lexer) skipWhitespace() {
 	for l.ch == ' ' || l.ch == '\t' || l.ch == '\n' || l.ch == '\r' {
 		l.readChar()
 	}
+}
+
+func (l *Lexer) skipSingleLineComment() {
+	for l.ch != '\n' && l.ch != '\r' && l.ch != 0 {
+		l.readChar()
+	}
+	l.skipWhitespace() // Consume the newline
+}
+
+func (l *Lexer) skipMultiLineComment() {
+	for {
+		if l.ch == 0 {
+			break
+		}
+		if l.ch == '*' && l.peekChar() == '/' {
+			l.readChar() // consume '*'
+			l.readChar() // consume '/'
+			break
+		}
+		l.readChar()
+	}
+	l.skipWhitespace() // Consume any whitespace after comment
 }
 
 func (l *Lexer) readIdentifier() string {
