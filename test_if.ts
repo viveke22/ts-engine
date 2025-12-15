@@ -28,15 +28,17 @@ if (a === b) {
 }
 
 if (a !== c) {
-    console.log("a strictly does not equal c");
+    console.log("a strictly does not equal c"); console.log("yo");
+    
 }
 
 if (10 === 10) {
-    console.log("10 === 10");
+    console.log("10 === 10" +" "+ "hi"); console.log("jo");
+    
 }
 
-if (10 !== "10") {
-    console.log("10 !== '10'");
-}
+// if (10 !== "10") {
+//     console.log("10 !== '10'");
+// }
 
 export { };
