@@ -1,32 +1,45 @@
-let a = 5;
-let b = 10;
-let c = a + b * 2;
-console.log("Result is:");
-console.log(c);
+// 1. Comments verification
+// This is a single line comment
+/* This is a 
+   multi-line comment */
 
-let d = 100;
-let e = d / 2;
-console.log("Division result:");
-console.log(e + a);
+// 2. Variables (let, const, var) and Types
+let x: number = 42;
+const pi: number = 3;
+var message: string = "Hello TS Engine";
 
-let f = 50 - 25;
-console.log("Subtraction result:");
-console.log(f);
-console.log("Hello, world!" + a);
+console.log(x);
+console.log(pi);
+console.log(message);
 
-let mod_a = 10;
-let mod_b = 3;
-let mod_c = mod_a % mod_b;
-console.log("Modulo result (10 % 3):");
-console.log(mod_c);
+// 3. Control Flow (if, else if, else) and Comparisons
+if (x > 50) {
+    console.log("x is large");
+} else if (x > 40) {
+    console.log("x is greater than 40");
+} else {
+    console.log("x is small");
+}
 
-let mod_d = 20;
-let mod_e = mod_d % 5;
-console.log("Modulo result (20 % 5):" + 1 + "h");
-console.log(mod_e);
+if (x === 42) {
+    console.log("Strict equality works");
+}
 
-let x1 = 10;
-console.log(x1);
-let x2 = 20;
-console.log(x2);
+// 4. Functions (Declarations, Expressions, Type Annotations)
+function add(a: number, b: number): number {
+    return a + b;
+}
+
+let sum = add(10, 20);
+console.log(sum);
+
+let multiply = function (a: number, b: number) {
+    return a * b;
+};
+
+console.log(multiply(5, 5));
+
+// 5. Final check
+console.log("Test suite completed successfully");
+
 export { };
