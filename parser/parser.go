@@ -123,7 +123,7 @@ func (p *Parser) peekError(t token.TokenType) {
 
 func (p *Parser) parseStatement() ast.Statement {
 	switch p.curToken.Type {
-	case token.LET:
+	case token.LET, token.CONST, token.VAR:
 		return p.parseLetStatement()
 	case token.RETURN:
 		return p.parseReturnStatement()

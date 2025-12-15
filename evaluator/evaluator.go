@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"ts-engine/ast"
 	"ts-engine/object"
+	"ts-engine/token"
 )
 
 var (
@@ -68,9 +69,17 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		if isError(val) {
 			return val
 		}
-		if _, ok := env.GetCurrent(node.Name.Value); ok {
-			return newError("cannot redeclare block-scoped variable '%s'", node.Name.Value)
+
+		if node.Token.Type == token.VAR {
+			// VAR allows redeclaration, so we don't check GetCurrent
+			// Ideally VAR is function-scoped, but for now we treat it as block-scoped or whatever env is.
+		} else {
+			// LET and CONST do not allow redeclaration
+			if _, ok := env.GetCurrent(node.Name.Value); ok {
+				return newError("cannot redeclare block-scoped variable '%s'", node.Name.Value)
+			}
 		}
+
 		env.Set(node.Name.Value, val)
 
 	case *ast.Identifier:

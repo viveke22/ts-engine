@@ -52,6 +52,8 @@ const (
 	ELSE     = "ELSE"
 	RETURN   = "RETURN"
 	EXPORT   = "EXPORT"
+	CONST    = "CONST"
+	VAR      = "VAR"
 )
 
 var keywords = map[string]TokenType{
@@ -63,6 +65,8 @@ var keywords = map[string]TokenType{
 	"else":     ELSE,
 	"return":   RETURN,
 	"export":   EXPORT,
+	"const":    CONST,
+	"var":      VAR,
 }
 
 func LookupIdent(ident string) TokenType {
