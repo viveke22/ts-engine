@@ -3,6 +3,7 @@ package evaluator
 import (
 	"fmt"
 	"ts-engine/ast"
+	"ts-engine/http"
 	"ts-engine/object"
 	"ts-engine/token"
 )
@@ -77,6 +78,12 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 			// LET and CONST do not allow redeclaration
 			if _, ok := env.GetCurrent(node.Name.Value); ok {
 				return newError("cannot redeclare block-scoped variable '%s'", node.Name.Value)
+			}
+		}
+
+		if node.Name.Type != "" {
+			if err := checkType(val, node.Name.Type); err != nil {
+				return err
 			}
 		}
 
@@ -157,6 +164,8 @@ func evalPrefixExpression(operator string, right object.Object) object.Object {
 		return evalBangOperatorExpression(right)
 	case "-":
 		return evalMinusPrefixOperatorExpression(right)
+	case "await":
+		return right
 	default:
 		return newError("unknown operator: %s%s", operator, right.Type())
 	}
@@ -383,4 +392,29 @@ var builtins = map[string]*object.Builtin{
 			return NULL
 		},
 	},
+	"fetch": {
+		Fn: http.Fetch,
+	},
+}
+
+func checkType(obj object.Object, typeName string) *object.Error {
+	switch typeName {
+	case "any", "unknown":
+		return nil
+	case "number":
+		if obj.Type() != object.INTEGER_OBJ {
+			return newError("type mismatch: expected number, got %s", obj.Type())
+		}
+	case "string":
+		if obj.Type() != object.STRING_OBJ {
+			return newError("type mismatch: expected string, got %s", obj.Type())
+		}
+	case "boolean":
+		if obj.Type() != object.BOOLEAN_OBJ {
+			return newError("type mismatch: expected boolean, got %s", obj.Type())
+		}
+	case "never":
+		return newError("type mismatch: cannot assign to never")
+	}
+	return nil
 }

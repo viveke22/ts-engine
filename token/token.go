@@ -55,6 +55,7 @@ const (
 	EXPORT   = "EXPORT"
 	CONST    = "CONST"
 	VAR      = "VAR"
+	AWAIT    = "AWAIT"
 )
 
 var keywords = map[string]TokenType{
@@ -68,6 +69,7 @@ var keywords = map[string]TokenType{
 	"export":   EXPORT,
 	"const":    CONST,
 	"var":      VAR,
+	"await":    AWAIT,
 }
 
 func LookupIdent(ident string) TokenType {
