@@ -162,6 +162,13 @@ func (p *Parser) parseLetStatement() *ast.LetStatement {
 
 	stmt.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 
+	// Optional type annotation: let x: number = ...
+	if p.peekTokenIs(token.COLON) {
+		p.nextToken() // consume COLON
+		p.nextToken() // consume Type Identifier
+		stmt.Name.Type = p.curToken.Literal
+	}
+
 	if !p.expectPeek(token.ASSIGN) {
 		return nil
 	}
@@ -321,6 +328,13 @@ func (p *Parser) parseFunctionLiteral() ast.Expression {
 
 	lit.Parameters = p.parseFunctionParameters()
 
+	// Optional return type: function(): void { ... }
+	if p.peekTokenIs(token.COLON) {
+		p.nextToken() // consume COLON
+		p.nextToken() // consume Type Identifier
+		lit.ReturnType = p.curToken.Literal
+	}
+
 	if !p.expectPeek(token.LBRACE) {
 		return nil
 	}
@@ -341,12 +355,28 @@ func (p *Parser) parseFunctionParameters() []*ast.Identifier {
 	p.nextToken()
 
 	ident := &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+
+	// Optional type annotation: (x: number)
+	if p.peekTokenIs(token.COLON) {
+		p.nextToken() // consume COLON
+		p.nextToken() // consume Type Identifier
+		ident.Type = p.curToken.Literal
+	}
+
 	identifiers = append(identifiers, ident)
 
 	for p.peekTokenIs(token.COMMA) {
 		p.nextToken()
 		p.nextToken()
 		ident := &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+
+		// Optional type annotation: (..., y: string)
+		if p.peekTokenIs(token.COLON) {
+			p.nextToken() // consume COLON
+			p.nextToken() // consume Type Identifier
+			ident.Type = p.curToken.Literal
+		}
+
 		identifiers = append(identifiers, ident)
 	}
 

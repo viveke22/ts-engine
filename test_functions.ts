@@ -1,12 +1,12 @@
-function add(x, y) {
+function add(x: number, y: string) {
     return x + y;
 }
 
-let sum = add(5, 10);
+let sum = add(5, "h");
 console.log(sum);
 
 // Function as expression
-let sub = function (a, b) {
+let sub = function (a: number, b: number) {
     return a - b;
 };
 

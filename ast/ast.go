@@ -127,6 +127,7 @@ func (bs *BlockStatement) String() string {
 type Identifier struct {
 	Token token.Token // the token.IDENT token
 	Value string
+	Type  string // e.g. "number", "string", "void"
 }
 
 func (i *Identifier) expressionNode()      {}
@@ -254,6 +255,7 @@ type FunctionLiteral struct {
 	Parameters []*Identifier
 	Body       *BlockStatement
 	Name       string
+	ReturnType string
 }
 
 func (fl *FunctionLiteral) expressionNode()      {}
