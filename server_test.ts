@@ -11,7 +11,7 @@ const server: any = http.createServer(function (req: http.IncomingMessage, res: 
     if (req.url === '/') {
         // 4. Response Headers and Body
         res.writeHead(200, { 'Content-Type': 'text/html' });
-        res.end('<h1>Welcome to TS-Engine Server!</h1><p>Running on native Go.</p>');
+        res.end('<h1 id="title">Welcome to TS-Engine Server!</h1><p>Running on native Go.</p><button onclick="document.getElementById(\'title\').style.color = \'blue\';">Click me</button>');
     } else if (req.url === '/json') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end('{ "status": "ok", "engine": "ts-engine" }');

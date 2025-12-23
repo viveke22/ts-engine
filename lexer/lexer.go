@@ -191,14 +191,69 @@ func (l *Lexer) readNumber() string {
 }
 
 func (l *Lexer) readString(quote byte) string {
-	position := l.position + 1
+	var out []byte
+	// Skip the opening quote
+	// We are already called after NextToken consumed the opening quote?
+	// Wait, NextToken case '"': calls l.readString('"').
+	// position was l.position + 1 (start of content).
+	// But l.readChar() is called inside loop.
+
+	// Correct logic:
+	// 1. We start just after the opening quote?
+	// NextToken logic:
+	/*
+		case '"':
+			tok.Type = token.STRING
+			tok.Literal = l.readString('"')
+	*/
+	// Lexer is at '"'.
+	// readString should consume content until closing quote.
+
+	// My previous readString used slicing:
+	/*
+		position := l.position + 1
+		for {
+			l.readChar()
+			...
+		}
+		return l.input[position:l.position]
+	*/
+	// This implies l.position was at '"' when called.
+
+	// New logic:
 	for {
 		l.readChar()
 		if l.ch == quote || l.ch == 0 {
 			break
 		}
+		if l.ch == '\\' {
+			l.readChar()
+			if l.ch == 0 {
+				break // trailing backslash at EOF
+			}
+			// Unescape standard sequences
+			switch l.ch {
+			case 'n':
+				out = append(out, '\n')
+			case 'r':
+				out = append(out, '\r')
+			case 't':
+				out = append(out, '\t')
+			case '"':
+				out = append(out, '"')
+			case '\'':
+				out = append(out, '\'')
+			case '\\':
+				out = append(out, '\\')
+			default:
+				// Unknown escape, just keep the character
+				out = append(out, l.ch)
+			}
+		} else {
+			out = append(out, l.ch)
+		}
 	}
-	return l.input[position:l.position]
+	return string(out)
 }
 
 func (l *Lexer) peekChar() byte {
