@@ -38,6 +38,8 @@ Native support for building web servers and making requests.
 
 ### 📝 Objects & Variables
 - **Declarations**: `let`, `const`, `var`.
+- **Strings**: Single `'` and double `"` quotes.
+- **Multi-line Strings**: Backticks `` ` `` supported (Template Literals without interpolation yet).
 - **Object Literals**: `{ key: "value", nested: { data: 1 } }`.
 - **Dot Notation**: `obj.key`, `obj.nested.data` (Read access).
 - **Arrays**: Basic array support (via host integration).
