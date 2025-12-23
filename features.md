@@ -22,6 +22,8 @@ Native support for building web servers and making requests.
     - `res.end(body)`
 - **Headers**: Full support for setting response headers (e.g. `{ 'Content-Type': 'text/html' }`).
 - **Client**: Global `fetch()` API with `await` support.
+    - Returns response object with `status`, `ok`, `statusText`.
+    - Methods: `.text()`, `.json()`.
 
 ### 📦 Modules & Imports
 - **Import Syntax**: `import * as http from 'http';` supported.

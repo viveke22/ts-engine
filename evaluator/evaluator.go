@@ -2,6 +2,7 @@ package evaluator
 
 import (
 	"fmt"
+	"strings"
 	"ts-engine/ast"
 	"ts-engine/http"
 	"ts-engine/object"
@@ -490,9 +491,11 @@ func init() {
 			Pairs: map[string]object.Object{
 				"log": &object.Builtin{
 					Fn: func(args ...object.Object) object.Object {
+						var out []string
 						for _, arg := range args {
-							fmt.Println(arg.Inspect())
+							out = append(out, arg.Inspect())
 						}
+						fmt.Println(strings.Join(out, " "))
 						return NULL
 					},
 				},
