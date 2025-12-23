@@ -32,6 +32,8 @@ const (
 	NOT_EQ        = "!="
 	EQ_STRICT     = "==="
 	NOT_EQ_STRICT = "!=="
+	AND           = "&&"
+	OR            = "||"
 
 	// Delimiters
 	COMMA     = ","
@@ -56,6 +58,10 @@ const (
 	CONST    = "CONST"
 	VAR      = "VAR"
 	AWAIT    = "AWAIT"
+	DECLARE  = "DECLARE"
+	IMPORT   = "IMPORT"
+	FROM     = "FROM"
+	AS       = "AS"
 )
 
 var keywords = map[string]TokenType{
@@ -70,6 +76,10 @@ var keywords = map[string]TokenType{
 	"const":    CONST,
 	"var":      VAR,
 	"await":    AWAIT,
+	"declare":  DECLARE,
+	"import":   IMPORT,
+	"from":     FROM,
+	"as":       AS,
 }
 
 func LookupIdent(ident string) TokenType {

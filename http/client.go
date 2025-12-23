@@ -2,12 +2,13 @@ package http
 
 import (
 	"net/http"
+	"strconv"
 	"ts-engine/object"
 )
 
 func Fetch(args ...object.Object) object.Object {
 	if len(args) != 1 {
-		return &object.Error{Message: "wrong number of arguments. got=" + string(len(args)) + ", want=1"}
+		return &object.Error{Message: "wrong number of arguments. got=" + strconv.Itoa(len(args)) + ", want=1"}
 	}
 
 	url, ok := args[0].(*object.String)

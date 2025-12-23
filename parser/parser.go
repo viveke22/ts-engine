@@ -11,6 +11,8 @@ import (
 const (
 	_ int = iota
 	LOWEST
+	LOGICAL_OR  // ||
+	LOGICAL_AND // &&
 	EQUALS      // ==
 	LESSGREATER // > or <
 	SUM         // +
@@ -31,6 +33,8 @@ var precedences = map[token.TokenType]int{
 	token.MOD:           PRODUCT,
 	token.EQ_STRICT:     EQUALS,
 	token.NOT_EQ_STRICT: EQUALS,
+	token.AND:           LOGICAL_AND,
+	token.OR:            LOGICAL_OR,
 	token.LPAREN:        CALL,
 	token.DOT:           CALL,
 }
@@ -49,18 +53,21 @@ type Parser struct {
 
 	prefixParseFns map[token.TokenType]prefixParseFn
 	infixParseFns  map[token.TokenType]infixParseFn
+	Strict         bool
 }
 
-func New(l *lexer.Lexer) *Parser {
+func New(l *lexer.Lexer, strict bool) *Parser {
 	p := &Parser{
 		l:      l,
 		errors: []string{},
+		Strict: strict,
 	}
 
 	p.prefixParseFns = make(map[token.TokenType]prefixParseFn)
 	p.registerPrefix(token.IDENT, p.parseIdentifier)
 	p.registerPrefix(token.INT, p.parseIntegerLiteral)
 	p.registerPrefix(token.STRING, p.parseStringLiteral)
+	p.registerPrefix(token.LBRACE, p.parseHashLiteral)
 	p.registerPrefix(token.BANG, p.parsePrefixExpression)
 	p.registerPrefix(token.MINUS, p.parsePrefixExpression)
 	p.registerPrefix(token.TRUE, p.parseBoolean)
@@ -87,6 +94,8 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerInfix(token.GT, p.parseInfixExpression)
 	p.registerInfix(token.LPAREN, p.parseCallExpression)
 	p.registerInfix(token.DOT, p.parseInfixExpression)
+	p.registerInfix(token.AND, p.parseInfixExpression)
+	p.registerInfix(token.OR, p.parseInfixExpression)
 
 	// Read two tokens, so curToken and peekToken are both set
 	p.nextToken()
@@ -133,6 +142,10 @@ func (p *Parser) parseStatement() ast.Statement {
 		return p.parseReturnStatement()
 	case token.EXPORT:
 		return p.parseExportStatement()
+	case token.DECLARE:
+		return p.parseDeclareStatement()
+	case token.IMPORT:
+		return p.parseImportStatement()
 	default:
 		return p.parseExpressionStatement()
 	}
@@ -168,8 +181,11 @@ func (p *Parser) parseLetStatement() *ast.LetStatement {
 	// Optional type annotation: let x: number = ...
 	if p.peekTokenIs(token.COLON) {
 		p.nextToken() // consume COLON
-		p.nextToken() // consume Type Identifier
-		stmt.Name.Type = p.curToken.Literal
+		stmt.Name.Type = p.parseTypeAnnotation()
+	} else if p.Strict {
+		msg := fmt.Sprintf("missing type annotation for variable '%s' in strict mode (.ts file)", stmt.Name.Value)
+		p.errors = append(p.errors, msg)
+		return nil
 	}
 
 	if !p.expectPeek(token.ASSIGN) {
@@ -324,8 +340,7 @@ func (p *Parser) parseFunctionLiteral() ast.Expression {
 	// Optional return type: function(): void { ... }
 	if p.peekTokenIs(token.COLON) {
 		p.nextToken() // consume COLON
-		p.nextToken() // consume Type Identifier
-		lit.ReturnType = p.curToken.Literal
+		lit.ReturnType = p.parseTypeAnnotation()
 	}
 
 	if !p.expectPeek(token.LBRACE) {
@@ -352,8 +367,7 @@ func (p *Parser) parseFunctionParameters() []*ast.Identifier {
 	// Optional type annotation: (x: number)
 	if p.peekTokenIs(token.COLON) {
 		p.nextToken() // consume COLON
-		p.nextToken() // consume Type Identifier
-		ident.Type = p.curToken.Literal
+		ident.Type = p.parseTypeAnnotation()
 	}
 
 	identifiers = append(identifiers, ident)
@@ -366,8 +380,7 @@ func (p *Parser) parseFunctionParameters() []*ast.Identifier {
 		// Optional type annotation: (..., y: string)
 		if p.peekTokenIs(token.COLON) {
 			p.nextToken() // consume COLON
-			p.nextToken() // consume Type Identifier
-			ident.Type = p.curToken.Literal
+			ident.Type = p.parseTypeAnnotation()
 		}
 
 		identifiers = append(identifiers, ident)
@@ -496,6 +509,112 @@ func (p *Parser) registerPrefix(tokenType token.TokenType, fn prefixParseFn) {
 
 func (p *Parser) registerInfix(tokenType token.TokenType, fn infixParseFn) {
 	p.infixParseFns[tokenType] = fn
+}
+
+func (p *Parser) parseHashLiteral() ast.Expression {
+	hash := &ast.HashLiteral{Token: p.curToken}
+	hash.Pairs = make(map[ast.Expression]ast.Expression)
+
+	for !p.peekTokenIs(token.RBRACE) {
+		p.nextToken()
+		key := p.parseExpression(LOWEST)
+
+		if !p.expectPeek(token.COLON) {
+			return nil
+		}
+
+		p.nextToken()
+		value := p.parseExpression(LOWEST)
+
+		hash.Pairs[key] = value
+
+		if !p.peekTokenIs(token.RBRACE) && !p.expectPeek(token.COMMA) {
+			return nil
+		}
+	}
+
+	if !p.expectPeek(token.RBRACE) {
+		return nil
+	}
+
+	return hash
+}
+
+func (p *Parser) parseImportStatement() ast.Statement {
+	stmt := &ast.ImportStatement{Token: p.curToken}
+
+	// Expect '*'
+	if !p.expectPeek(token.ASTERISK) {
+		return nil
+	}
+
+	// Expect 'as'
+	if !p.expectPeek(token.AS) {
+		return nil
+	}
+
+	// Expect Identifier (alias)
+	if !p.expectPeek(token.IDENT) {
+		return nil
+	}
+
+	stmt.Alias = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+
+	// Expect 'from'
+	if !p.expectPeek(token.FROM) {
+		return nil
+	}
+
+	// Expect String (source)
+	if !p.expectPeek(token.STRING) {
+		return nil
+	}
+
+	stmt.Source = &ast.StringLiteral{Token: p.curToken, Value: p.curToken.Literal}
+
+	// Optional Semicolon
+	if p.peekTokenIs(token.SEMICOLON) {
+		p.nextToken()
+	}
+
+	return stmt
+}
+
+func (p *Parser) parseDeclareStatement() ast.Statement {
+	// declare var x: any;
+	// Just consume until semicolon
+	for !p.curTokenIs(token.SEMICOLON) && !p.curTokenIs(token.EOF) {
+		p.nextToken()
+	}
+	// Do NOT consume the semicolon here; ParseProgram loop does p.nextToken()
+	// which expects curToken to be the last token of the statement (e.g. semicolon).
+
+	// Return nil effectively ignores this statement in the AST
+	return nil
+}
+
+func (p *Parser) parseTypeAnnotation() string {
+	p.nextToken() // consume first type identifier (or strictly, we should be AT the identifier)
+	// Wait, the caller often consumes the COLON then calls this.
+	// Let's assume the caller just consumed COLON. So peekToken is the start of type.
+	// So we do p.nextToken() to match standard loop structure or just consume here.
+
+	// Implementation:
+	// Caller: if p.peekTokenIs(COLON) { p.nextToken(); typeStr := p.parseTypeAnnotation() }
+
+	// parseTypeAnnotation:
+	// Expect current token (after nextToken call in this function) to be IDENT
+
+	// Actually, let's keep it simple.
+	typeName := p.curToken.Literal
+
+	for p.peekTokenIs(token.DOT) {
+		p.nextToken() // consume DOT
+		p.nextToken() // consume next part of type
+		typeName += "." + p.curToken.Literal
+	}
+
+	return typeName
 }
 
 func (p *Parser) noPrefixParseFnError(t token.TokenType) {

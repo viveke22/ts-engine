@@ -38,7 +38,7 @@ func main() {
 		// The last part is the source code
 		if len(parts) > 1 {
 			sourceCode := string(parts[len(parts)-1])
-			runCode(sourceCode)
+			runCode(sourceCode, true) // Embedded code is assumed to be TS/Strict
 			return
 		}
 	}
@@ -67,13 +67,14 @@ func main() {
 		fmt.Printf("Error reading file: %s\n", err)
 		return
 	}
-	runCode(string(code))
+	isStrict := strings.HasSuffix(filename, ".ts")
+	runCode(string(code), isStrict)
 }
 
-func runCode(code string) {
+func runCode(code string, isStrict bool) {
 	env := object.NewEnvironment()
 	l := lexer.New(code)
-	p := parser.New(l)
+	p := parser.New(l, isStrict)
 
 	program := p.ParseProgram()
 	if len(p.Errors()) != 0 {

@@ -74,6 +74,9 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 	case *ast.ExportStatement:
 		return NULL
 
+	case *ast.ImportStatement:
+		return evalImportStatement(node, env)
+
 	case *ast.LetStatement:
 		val := Eval(node.Value, env)
 		if isError(val) {
@@ -109,6 +112,9 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 			env.Set(node.Name, fn)
 		}
 		return fn
+
+	case *ast.HashLiteral:
+		return evalHashLiteral(node, env)
 
 	case *ast.CallExpression:
 		function := Eval(node.Function, env)
@@ -198,6 +204,10 @@ func evalInfixExpression(operator string, left, right object.Object) object.Obje
 		return nativeBoolToBooleanObject(left != right || left.Type() != right.Type())
 	case operator == "!==":
 		return nativeBoolToBooleanObject(left != right || left.Type() != right.Type())
+	case operator == "&&":
+		return nativeBoolToBooleanObject(isTruthy(left) && isTruthy(right))
+	case operator == "||":
+		return nativeBoolToBooleanObject(isTruthy(left) || isTruthy(right))
 	case left.Type() != right.Type():
 		return newError("type mismatch: %s %s %s", left.Type(), operator, right.Type())
 	default:
@@ -246,6 +256,32 @@ func evalBangOperatorExpression(right object.Object) object.Object {
 	}
 }
 
+func evalImportStatement(node *ast.ImportStatement, env *object.Environment) object.Object {
+	source := node.Source.Value
+
+	// We reuse the 'require' builtin logic
+	requireObj, ok := builtins["require"]
+	if !ok {
+		return newError("require builtin not found")
+	}
+
+	requireFn, ok := requireObj.(*object.Builtin)
+	if !ok {
+		return newError("require is not a function")
+	}
+
+	// Call require("source")
+	module := requireFn.Fn(&object.String{Value: source})
+	if isError(module) {
+		return module
+	}
+
+	// Bind result to alias
+	env.Set(node.Alias.Value, module)
+
+	return NULL
+}
+
 func evalMinusPrefixOperatorExpression(right object.Object) object.Object {
 	if right.Type() != object.INTEGER_OBJ {
 		return newError("unknown operator: -%s", right.Type())
@@ -253,6 +289,38 @@ func evalMinusPrefixOperatorExpression(right object.Object) object.Object {
 
 	value := right.(*object.Integer).Value
 	return &object.Integer{Value: -value}
+}
+
+func evalHashLiteral(node *ast.HashLiteral, env *object.Environment) object.Object {
+	pairs := make(map[string]object.Object)
+
+	for keyNode, valueNode := range node.Pairs {
+		var keyStr string
+
+		// If key is Identifier, take the name as string literal (e.g. { name: "val" })
+		if ident, ok := keyNode.(*ast.Identifier); ok {
+			keyStr = ident.Value
+		} else {
+			key := Eval(keyNode, env)
+			if isError(key) {
+				return key
+			}
+			if s, ok := key.(*object.String); ok {
+				keyStr = s.Value
+			} else {
+				keyStr = key.Inspect() // Fallback
+			}
+		}
+
+		value := Eval(valueNode, env)
+		if isError(value) {
+			return value
+		}
+
+		pairs[keyStr] = value
+	}
+
+	return &object.Hash{Pairs: pairs}
 }
 
 func evalIntegerInfixExpression(operator string, left, right object.Object) object.Object {
@@ -414,22 +482,50 @@ func newError(format string, a ...interface{}) *object.Error {
 	return &object.Error{Message: fmt.Sprintf(format, a...)}
 }
 
-var builtins = map[string]object.Object{
-	"console": &object.Hash{
-		Pairs: map[string]object.Object{
-			"log": &object.Builtin{
-				Fn: func(args ...object.Object) object.Object {
-					for _, arg := range args {
-						fmt.Println(arg.Inspect())
-					}
-					return NULL
+var builtins map[string]object.Object
+
+func init() {
+	builtins = map[string]object.Object{
+		"console": &object.Hash{
+			Pairs: map[string]object.Object{
+				"log": &object.Builtin{
+					Fn: func(args ...object.Object) object.Object {
+						for _, arg := range args {
+							fmt.Println(arg.Inspect())
+						}
+						return NULL
+					},
 				},
 			},
 		},
-	},
-	"fetch": &object.Builtin{
-		Fn: http.Fetch,
-	},
+		"fetch": &object.Builtin{
+			Fn: http.Fetch,
+		},
+		"require": &object.Builtin{
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) != 1 {
+					return newError("wrong number of arguments. got=%d, want=1", len(args))
+				}
+				name, ok := args[0].(*object.String)
+				if !ok {
+					return newError("argument to `require` must be STRING, got %s", args[0].Type())
+				}
+
+				if name.Value == "http" {
+					// Return the HTTP module object
+					return &object.Hash{
+						Pairs: map[string]object.Object{
+							"createServer": &object.Builtin{
+								Fn: createHttpServer,
+							},
+						},
+					}
+				}
+
+				return newError("module not found: %s", name.Value)
+			},
+		},
+	}
 }
 
 func checkType(obj object.Object, typeName string) *object.Error {
@@ -450,6 +546,11 @@ func checkType(obj object.Object, typeName string) *object.Error {
 		}
 	case "never":
 		return newError("type mismatch: cannot assign to never")
+	default:
+		// If type contains '.', treat as named interface/class and allow (for now)
+		// e.g. http.IncomingMessage
+		// Also allow simple identifiers that are not primitives (e.g. MyClass)
+		return nil
 	}
 	return nil
 }

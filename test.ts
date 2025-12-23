@@ -1,45 +1,31 @@
-// 1. Comments verification
-// This is a single line comment
-/* This is a 
-   multi-line comment */
+// test.ts - Showcase of implemented TypeScript Language Features
+// (Run with strict mode enabled implicitly for .ts files)
 
-// 2. Variables (let, const, var) and Types
-let x: number = 42;
-const pi: number = 3;
-var message: string = "Hello TS Engine";
+// 1. Strict Variable Typing
+let count: number = 42;
+let message: string = "Hello TypeScript";
+let isActive: boolean = true;
+let anything: any = "Could be anything";
 
-console.log(x);
-console.log(pi);
-console.log(message);
+console.log(message + ", Count: " + count);
 
-// 3. Control Flow (if, else if, else) and Comparisons
-if (x > 50) {
-    console.log("x is large");
-} else if (x > 40) {
-    console.log("x is greater than 40");
-} else {
-    console.log("x is small");
-}
-
-if (x === 42) {
-    console.log("Strict equality works");
-}
-
-// 4. Functions (Declarations, Expressions, Type Annotations)
-function add(a: number, b: number): number {
-    return a + b;
-}
-
-let sum = add(10, 20);
-console.log(sum);
-
-let multiply = function (a: number, b: number) {
+// 2. Typed Function Parameters and Return Type
+function multiply(a: number, b: number): number {
     return a * b;
-};
+}
 
-console.log(multiply(5, 5));
+console.log("Multiply(10, 2): " + multiply(10, 2));
 
-// 5. Final check
-console.log("Test suite completed successfully");
+// 3. Complex/Dotted Types (treated as 'any' at runtime but parsed correctly)
+// This simulates types like http.IncomingMessage
+function handleRequest(req: http.IncomingMessage, res: http.ServerResponse) {
+    console.log("Handing request with types...");
+}
 
-export { };
+// 4. Declare Statements (parsed and ignored to satisfy IDE)
+declare var console: any;
+declare var http: any;
+
+// 5. Type Enforcement verification
+// Uncommenting the line below should cause a runtime error in strict mode:
+// let failure: number = "this is a string"; 
