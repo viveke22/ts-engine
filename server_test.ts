@@ -15,7 +15,10 @@ const server: any = http.createServer(function (req: http.IncomingMessage, res: 
     else if (req.url === '/') {
         // 4. Response Headers and Body
         res.writeHead(200, { 'Content-Type': 'text/html' });
-        res.end('<h1>Welcome to ts-engine server!</h1>')
+        res.end(`
+  <h1>Welcome to TS Engine Server!</h1>
+  <button onclick="window.location.href = '/home'">Go to /home</button>
+`);
     }else if (req.url === '/home') {
         res.writeHead(200, { 'Content-Type': 'text/html' });
         res.end(`<!DOCTYPE html>
