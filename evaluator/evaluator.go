@@ -79,22 +79,28 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		return evalImportStatement(node, env)
 
 	case *ast.LetStatement:
-		val := Eval(node.Value, env)
-		if isError(val) {
-			return val
+		var val object.Object
+		if node.Value != nil {
+			val = Eval(node.Value, env)
+			if isError(val) {
+				return val
+			}
+		} else {
+			val = NULL
 		}
 
 		if node.Token.Type == token.VAR {
-			// VAR allows redeclaration, so we don't check GetCurrent
-			// Ideally VAR is function-scoped, but for now we treat it as block-scoped or whatever env is.
+			// VAR allows redeclaration
 		} else {
 			// LET and CONST do not allow redeclaration
+			// However, in our REPL/single-run mode, we might want to be lenient or strict.
+			// Standard JS: SyntaxError if redeclared in same scope.
 			if _, ok := env.GetCurrent(node.Name.Value); ok {
 				return newError("cannot redeclare block-scoped variable '%s'", node.Name.Value)
 			}
 		}
 
-		if node.Name.Type != "" {
+		if node.Name.Type != "" && val != NULL {
 			if err := checkType(val, node.Name.Type); err != nil {
 				return err
 			}
@@ -128,6 +134,45 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		}
 
 		return applyFunction(function, args)
+
+	case *ast.ArrayLiteral:
+		elements := evalExpressions(node.Elements, env)
+		if len(elements) == 1 && isError(elements[0]) {
+			return elements[0]
+		}
+		return &object.Array{Elements: elements}
+
+	case *ast.AssignmentExpression:
+		left := node.Left
+		val := Eval(node.Value, env)
+		if isError(val) {
+			return val
+		}
+
+		if ident, ok := left.(*ast.Identifier); ok {
+			// Check if variable exists before assigning?
+			// For now, let's just Set it.
+			// Ideally we should check if it's CONST or if it exists in scope chain.
+			// Assuming recursive Set for now or just simple Set.
+			// If we want to verify existence:
+			if _, ok := env.Get(ident.Value); !ok {
+				return newError("identifier not found: %s", ident.Value)
+			}
+			env.Set(ident.Value, val)
+			return val
+		}
+		return newError("assignment to non-identifier not supported yet")
+
+	case *ast.IndexExpression:
+		left := Eval(node.Left, env)
+		if isError(left) {
+			return left
+		}
+		index := Eval(node.Index, env)
+		if isError(index) {
+			return index
+		}
+		return evalIndexExpression(left, index)
 	}
 
 	return nil
@@ -396,6 +441,47 @@ func evalDotIndexExpression(left object.Object, rightNode ast.Node) object.Objec
 	return newError("property access not supported on %s", left.Type())
 }
 
+func evalIndexExpression(left, index object.Object) object.Object {
+	switch {
+	case left.Type() == object.ARRAY_OBJ && index.Type() == object.INTEGER_OBJ:
+		return evalArrayIndexExpression(left, index)
+	case left.Type() == object.HASH_OBJ:
+		return evalHashIndexExpression(left, index)
+	default:
+		return newError("index operator not supported: %s", left.Type())
+	}
+}
+
+func evalArrayIndexExpression(array, index object.Object) object.Object {
+	arrayObject := array.(*object.Array)
+	idx := index.(*object.Integer).Value
+	max := int64(len(arrayObject.Elements) - 1)
+
+	if idx < 0 || idx > max {
+		return NULL
+	}
+
+	return arrayObject.Elements[idx]
+}
+
+func evalHashIndexExpression(hash, index object.Object) object.Object {
+	hashObject := hash.(*object.Hash)
+
+	var key string
+	if s, ok := index.(*object.String); ok {
+		key = s.Value
+	} else {
+		key = index.Inspect()
+	}
+
+	val, ok := hashObject.Pairs[key]
+	if !ok {
+		return NULL
+	}
+
+	return val
+}
+
 func evalStringConcatenation(left, right object.Object) object.Object {
 	var leftVal, rightVal string
 
@@ -532,6 +618,49 @@ func init() {
 }
 
 func checkType(obj object.Object, typeName string) *object.Error {
+	// Handle Array Types: number[]
+	if strings.HasSuffix(typeName, "[]") {
+		// ... existing array logic ...
+		if obj.Type() != object.ARRAY_OBJ {
+			return newError("type mismatch: expected %s, got %s", typeName, obj.Type())
+		}
+		baseType := strings.TrimSuffix(typeName, "[]")
+		array := obj.(*object.Array)
+		for _, el := range array.Elements {
+			if err := checkType(el, baseType); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	// Handle Tuple Types: [string, number]
+	if strings.HasPrefix(typeName, "[") && strings.HasSuffix(typeName, "]") {
+		if obj.Type() != object.ARRAY_OBJ {
+			return newError("type mismatch: expected tuple %s, got %s", typeName, obj.Type())
+		}
+
+		array := obj.(*object.Array)
+		content := typeName[1 : len(typeName)-1] // strip [ and ]
+		types := strings.Split(content, ",")     // split by comma
+
+		// Clean up spaces
+		for i, t := range types {
+			types[i] = strings.TrimSpace(t)
+		}
+
+		if len(array.Elements) != len(types) {
+			return newError("type mismatch: expected tuple length %d, got %d", len(types), len(array.Elements))
+		}
+
+		for i, el := range array.Elements {
+			if err := checkType(el, types[i]); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
 	switch typeName {
 	case "any", "unknown":
 		return nil

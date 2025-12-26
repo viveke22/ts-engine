@@ -3,6 +3,7 @@ package parser
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"ts-engine/ast"
 	"ts-engine/lexer"
 	"ts-engine/token"
@@ -11,6 +12,7 @@ import (
 const (
 	_ int = iota
 	LOWEST
+	ASSIGN      // =
 	LOGICAL_OR  // ||
 	LOGICAL_AND // &&
 	EQUALS      // ==
@@ -19,6 +21,7 @@ const (
 	PRODUCT     // *
 	PREFIX      // -X or !X
 	CALL        // myFunction(X)
+	INDEX       // array[index]
 )
 
 var precedences = map[token.TokenType]int{
@@ -37,6 +40,8 @@ var precedences = map[token.TokenType]int{
 	token.OR:            LOGICAL_OR,
 	token.LPAREN:        CALL,
 	token.DOT:           CALL,
+	token.LBRACKET:      INDEX,
+	token.ASSIGN:        ASSIGN,
 }
 
 type (
@@ -78,6 +83,7 @@ func New(l *lexer.Lexer, strict bool) *Parser {
 	p.registerPrefix(token.IF, p.parseIfExpression)
 	p.registerPrefix(token.FUNCTION, p.parseFunctionLiteral)
 	p.registerPrefix(token.AWAIT, p.parsePrefixExpression)
+	p.registerPrefix(token.LBRACKET, p.parseArrayLiteral)
 
 	p.infixParseFns = make(map[token.TokenType]infixParseFn)
 	p.registerInfix(token.PLUS, p.parseInfixExpression)
@@ -96,6 +102,8 @@ func New(l *lexer.Lexer, strict bool) *Parser {
 	p.registerInfix(token.DOT, p.parseInfixExpression)
 	p.registerInfix(token.AND, p.parseInfixExpression)
 	p.registerInfix(token.OR, p.parseInfixExpression)
+	p.registerInfix(token.LBRACKET, p.parseIndexExpression)
+	p.registerInfix(token.ASSIGN, p.parseAssignmentExpression)
 
 	// Read two tokens, so curToken and peekToken are both set
 	p.nextToken()
@@ -186,6 +194,12 @@ func (p *Parser) parseLetStatement() *ast.LetStatement {
 		msg := fmt.Sprintf("missing type annotation for variable '%s' in strict mode (.ts file)", stmt.Name.Value)
 		p.errors = append(p.errors, msg)
 		return nil
+	}
+
+	// Declaration without assignment: let x: number;
+	if p.peekTokenIs(token.SEMICOLON) {
+		p.nextToken()
+		return stmt
 	}
 
 	if !p.expectPeek(token.ASSIGN) {
@@ -304,6 +318,15 @@ func (p *Parser) parseInfixExpression(left ast.Expression) ast.Expression {
 	expression.Right = p.parseExpression(precedence)
 
 	return expression
+}
+
+func (p *Parser) parseAssignmentExpression(left ast.Expression) ast.Expression {
+	exp := &ast.AssignmentExpression{Token: p.curToken, Left: left}
+
+	p.nextToken()
+	exp.Value = p.parseExpression(LOWEST)
+
+	return exp
 }
 
 func (p *Parser) parseBoolean() ast.Expression {
@@ -599,18 +622,14 @@ func (p *Parser) parseDeclareStatement() ast.Statement {
 }
 
 func (p *Parser) parseTypeAnnotation() string {
-	p.nextToken() // consume first type identifier (or strictly, we should be AT the identifier)
-	// Wait, the caller often consumes the COLON then calls this.
-	// Let's assume the caller just consumed COLON. So peekToken is the start of type.
-	// So we do p.nextToken() to match standard loop structure or just consume here.
+	// If the next token is [, it might be a Tuple (or Array start if we supported [T] syntax, which we do now for tuples)
+	if p.peekTokenIs(token.LBRACKET) {
+		p.nextToken() // consume [
+		return p.parseTupleType()
+	}
 
-	// Implementation:
-	// Caller: if p.peekTokenIs(COLON) { p.nextToken(); typeStr := p.parseTypeAnnotation() }
+	p.nextToken() // consume first type identifier
 
-	// parseTypeAnnotation:
-	// Expect current token (after nextToken call in this function) to be IDENT
-
-	// Actually, let's keep it simple.
 	typeName := p.curToken.Literal
 
 	for p.peekTokenIs(token.DOT) {
@@ -619,10 +638,101 @@ func (p *Parser) parseTypeAnnotation() string {
 		typeName += "." + p.curToken.Literal
 	}
 
+	// Handle Array Types: number[] or string[][]
+	for p.peekTokenIs(token.LBRACKET) {
+		p.nextToken() // consume [
+		if !p.peekTokenIs(token.RBRACKET) {
+			break
+		}
+		p.nextToken() // consume ]
+		typeName += "[]"
+	}
+
 	return typeName
+}
+
+func (p *Parser) parseTupleType() string {
+	// curToken is [
+	var types []string
+
+	if p.peekTokenIs(token.RBRACKET) {
+		p.nextToken()
+		return "[]"
+	}
+
+	for {
+		// Parse the inner type
+		// parseTypeAnnotation expects to be called *before* the type token
+		// Since we are at [ or , (previous token), and peek is the start of type.
+		// e.g. [ string
+		// cur=[, peek=string.
+		// parseTypeAnnotation calls nextToken -> cur=string. Correct.
+
+		typeStr := p.parseTypeAnnotation()
+		types = append(types, typeStr)
+
+		if p.peekTokenIs(token.RBRACKET) {
+			break
+		}
+
+		if !p.expectPeek(token.COMMA) {
+			return ""
+		}
+	}
+
+	if !p.expectPeek(token.RBRACKET) {
+		return ""
+	}
+
+	return "[" + strings.Join(types, ", ") + "]"
 }
 
 func (p *Parser) noPrefixParseFnError(t token.TokenType) {
 	msg := fmt.Sprintf("no prefix parse function for %s found", t)
 	p.errors = append(p.errors, msg)
+}
+
+func (p *Parser) parseArrayLiteral() ast.Expression {
+	array := &ast.ArrayLiteral{Token: p.curToken}
+
+	array.Elements = p.parseExpressionList(token.RBRACKET)
+
+	return array
+}
+
+func (p *Parser) parseExpressionList(end token.TokenType) []ast.Expression {
+	list := []ast.Expression{}
+
+	if p.peekTokenIs(end) {
+		p.nextToken()
+		return list
+	}
+
+	p.nextToken()
+	list = append(list, p.parseExpression(LOWEST))
+
+	for p.peekTokenIs(token.COMMA) {
+		p.nextToken()
+		p.nextToken()
+		list = append(list, p.parseExpression(LOWEST))
+	}
+
+	if !p.expectPeek(end) {
+		return nil
+	}
+
+	return list
+}
+
+func (p *Parser) parseIndexExpression(left ast.Expression) ast.Expression {
+	exp := &ast.IndexExpression{Token: p.curToken, Left: left}
+
+	p.nextToken()
+	exp.Index = p.parseExpression(LOWEST)
+
+	if !p.expectPeek(token.RBRACKET) {
+		return nil
+	}
+
+	return exp
 }

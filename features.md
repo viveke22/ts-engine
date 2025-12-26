@@ -44,10 +44,23 @@ Native support for building web servers and making requests.
 - **Multi-line Strings**: Backticks `` ` `` supported (Template Literals without interpolation yet).
 - **Object Literals**: `{ key: "value", nested: { data: 1 } }`.
 - **Dot Notation**: `obj.key`, `obj.nested.data` (Read access).
-- **Arrays**: Basic array support (via host integration).
+- **Variables**: 
+    - `let`, `const`, `var` supported.
+    - Declaration without assignment: `let x: number;`
+    - Reassignment: `x = 5;`
+- **Arrays**:
+    - Creation: `let arr = [1, 2, 3];`
+    - Types: `number[]`, `string[]`, `any[]`.
+    - Tuples: `[string, number]`.
+    - Index Access: `arr[0]`
+    - Nested Arrays: `[[1, 2], [3, 4]]`
+- **Object/Hash**:
+    - Creation: `let obj = { x: 5, y: 10 };`
+    - Dot Notation: `obj.x`
+    - Bracket Notation: `obj["x"]`
 
 ### 🛠️ Functions & Control Flow
-- **Functions**: Named `function foo() {}` and expressions `let f = function() {}`.
+- **Functions**: First-class citizens. `function name() {}` or `let name = function() {}`.
 - **Recursion**: Fully supported.
 - **Control Flow**: `if`, `else if`, `else`, `while` loops.
 - **Operators**: Arithmetic, Logical (`&&`, `||`, `!`), Comparison (`===`, `!==`, etc.).
