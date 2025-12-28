@@ -1,5 +1,5 @@
 // Arrow function with typed parameters and return type
-const add: any = (a: number, b: number): number => a + b;
+const add = (a: number, b: number) => a + b;
 console.log("Add:", add(5, 3)); // Output: Add: 8
 
 // Multi-line arrow function with explicit return
