@@ -68,13 +68,15 @@ func (e *Error) Type() ObjectType { return ERROR_OBJ }
 func (e *Error) Inspect() string  { return "ERROR: " + e.Message }
 
 type Environment struct {
-	store map[string]Object
-	outer *Environment
+	store     map[string]Object
+	typeStore map[string]string
+	outer     *Environment
 }
 
 func NewEnvironment() *Environment {
 	s := make(map[string]Object)
-	return &Environment{store: s, outer: nil}
+	t := make(map[string]string)
+	return &Environment{store: s, typeStore: t, outer: nil}
 }
 
 func NewEnclosedEnvironment(outer *Environment) *Environment {
@@ -99,6 +101,18 @@ func (e *Environment) GetCurrent(name string) (Object, bool) {
 func (e *Environment) Set(name string, val Object) Object {
 	e.store[name] = val
 	return val
+}
+
+func (e *Environment) SetType(name string, typeName string) {
+	e.typeStore[name] = typeName
+}
+
+func (e *Environment) GetType(name string) (string, bool) {
+	t, ok := e.typeStore[name]
+	if !ok && e.outer != nil {
+		return e.outer.GetType(name)
+	}
+	return t, ok
 }
 
 type Function struct {

@@ -42,6 +42,7 @@ var precedences = map[token.TokenType]int{
 	token.DOT:           CALL,
 	token.LBRACKET:      INDEX,
 	token.ASSIGN:        ASSIGN,
+	token.ARROW:         ASSIGN,
 }
 
 type (
@@ -104,6 +105,7 @@ func New(l *lexer.Lexer, strict bool) *Parser {
 	p.registerInfix(token.OR, p.parseInfixExpression)
 	p.registerInfix(token.LBRACKET, p.parseIndexExpression)
 	p.registerInfix(token.ASSIGN, p.parseAssignmentExpression)
+	p.registerInfix(token.ARROW, p.parseArrowFunctionInfix)
 
 	// Read two tokens, so curToken and peekToken are both set
 	p.nextToken()
@@ -137,8 +139,8 @@ func (p *Parser) Errors() []string {
 }
 
 func (p *Parser) peekError(t token.TokenType) {
-	msg := fmt.Sprintf("expected next token to be %s, got %s instead",
-		t, p.peekToken.Type)
+	msg := fmt.Sprintf("expected next token to be %s, got %s instead. Current: %q, Peek: %q",
+		t, p.peekToken.Type, p.curToken.Literal, p.peekToken.Literal)
 	p.errors = append(p.errors, msg)
 }
 
@@ -190,11 +192,11 @@ func (p *Parser) parseLetStatement() *ast.LetStatement {
 	if p.peekTokenIs(token.COLON) {
 		p.nextToken() // consume COLON
 		stmt.Name.Type = p.parseTypeAnnotation()
-	} else if p.Strict {
-		msg := fmt.Sprintf("missing type annotation for variable '%s' in strict mode (.ts file)", stmt.Name.Value)
-		p.errors = append(p.errors, msg)
-		return nil
 	}
+	// In strict mode, we allowed to rely on Type Inference now.
+	// So strictly speaking, missing type is OK if we have an assignment.
+	// Ideally we enforce: if Strict && no Assignment && no Type -> Error.
+	// But let's just relax it for now to support 'let x = 5'.
 
 	// Declaration without assignment: let x: number;
 	if p.peekTokenIs(token.SEMICOLON) {
@@ -336,13 +338,151 @@ func (p *Parser) parseBoolean() ast.Expression {
 func (p *Parser) parseGroupedExpression() ast.Expression {
 	p.nextToken()
 
+	// It could be empty parens: () => ... or (): type => ...
+	if p.curTokenIs(token.RPAREN) {
+		// parsed empty params
+
+		var returnType string
+		if p.peekTokenIs(token.COLON) {
+			p.nextToken() // consume COLON
+			returnType = p.parseTypeAnnotation()
+		}
+
+		// Valid only if followed by =>
+		if p.peekTokenIs(token.ARROW) {
+			p.nextToken() // consume ) or typeEnd
+			return p.parseArrowFunction(nil, returnType)
+		}
+		return nil // () is not a valid expression otherwise
+	}
+
 	exp := p.parseExpression(LOWEST)
+
+	// Handle Arrow Function with Typed First Param: (a: number, ...)
+	if p.peekTokenIs(token.COLON) {
+		params := []*ast.Identifier{}
+
+		if ident, ok := exp.(*ast.Identifier); ok {
+			p.nextToken() // consume COLON
+			ident.Type = p.parseTypeAnnotation()
+			params = append(params, ident)
+		} else {
+			return nil
+		}
+
+		// Continue with commas if any
+		for p.peekTokenIs(token.COMMA) {
+			p.nextToken() // consume last thing
+			// parse next param
+			if !p.expectPeek(token.IDENT) {
+				return nil
+			}
+			ident := &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+			if p.peekTokenIs(token.COLON) {
+				p.nextToken()
+				ident.Type = p.parseTypeAnnotation()
+			}
+			params = append(params, ident)
+		}
+
+		if !p.expectPeek(token.RPAREN) {
+			return nil
+		}
+
+		var returnType string
+		if p.peekTokenIs(token.COLON) {
+			p.nextToken()
+			returnType = p.parseTypeAnnotation()
+		}
+
+		if !p.expectPeek(token.ARROW) {
+			return nil
+		}
+		return p.parseArrowFunction(params, returnType)
+	}
+
+	// Any other comma means it's a parameter list (first untyped) or sequence
+	// (a, b) => ...
+	if p.peekTokenIs(token.COMMA) {
+		params := []*ast.Identifier{}
+
+		// First param
+		if ident, ok := exp.(*ast.Identifier); ok {
+			params = append(params, ident)
+		} else {
+			// This might be a sequence expression in future, but for now error or assume invalid
+			return nil
+		}
+
+		for p.peekTokenIs(token.COMMA) {
+			p.nextToken() // consume last char
+			// parse next param
+			if !p.expectPeek(token.IDENT) {
+				return nil
+			}
+			// We can't use parseExpression(LOWEST) freely because of precedence?
+			// Actually just expecting identifiers here
+			ident := &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+			if p.peekTokenIs(token.COLON) {
+				p.nextToken()
+				ident.Type = p.parseTypeAnnotation()
+			}
+			params = append(params, ident)
+		}
+
+		if !p.expectPeek(token.RPAREN) {
+			return nil
+		}
+
+		var returnType string
+		if p.peekTokenIs(token.COLON) {
+			p.nextToken()
+			returnType = p.parseTypeAnnotation()
+		}
+
+		if !p.expectPeek(token.ARROW) {
+			return nil
+		}
+
+		return p.parseArrowFunction(params, returnType)
+	}
 
 	if !p.expectPeek(token.RPAREN) {
 		return nil
 	}
 
+	// (a) => ...
+	if p.peekTokenIs(token.ARROW) {
+		// Convert exp to param
+		params := []*ast.Identifier{}
+		if ident, ok := exp.(*ast.Identifier); ok {
+			params = append(params, ident)
+		} else {
+			// (5) => ... invalid?
+			return nil
+		}
+		p.nextToken() // consume ARROW
+		return p.parseArrowFunction(params, "")
+	}
+
 	return exp
+}
+
+func (p *Parser) parseArrowFunction(params []*ast.Identifier, returnType string) ast.Expression {
+	// curToken is =>
+	arrow := &ast.ArrowFunctionLiteral{Token: p.curToken}
+	arrow.Parameters = params
+	arrow.ReturnType = returnType
+
+	p.nextToken() // move to body
+
+	if p.curTokenIs(token.LBRACE) {
+		arrow.Body = p.parseBlockStatement()
+	} else {
+		arrow.Body = p.parseExpression(LOWEST)
+	}
+
+	return arrow
 }
 
 func (p *Parser) parseCallExpression(function ast.Expression) ast.Expression {
@@ -735,4 +875,20 @@ func (p *Parser) parseIndexExpression(left ast.Expression) ast.Expression {
 	}
 
 	return exp
+}
+
+func (p *Parser) parseArrowFunctionInfix(left ast.Expression) ast.Expression {
+	// Left is the parameter (single identifier)
+	// x => ...
+	// Verify left is identifier
+	ident, ok := left.(*ast.Identifier)
+	if !ok {
+		// Could be invalid syntax e.g. 5 => ...
+		return nil
+	}
+
+	params := []*ast.Identifier{ident}
+	// Pass empty return type? Or parse it?
+	// x => ... implies no return type annotation on 'x' itself usually, unless (x): type => ... which is handled by grouped exp.
+	return p.parseArrowFunction(params, "")
 }

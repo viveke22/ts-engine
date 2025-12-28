@@ -44,10 +44,7 @@ Native support for building web servers and making requests.
 - **Multi-line Strings**: Backticks `` ` `` supported (Template Literals without interpolation yet).
 - **Object Literals**: `{ key: "value", nested: { data: 1 } }`.
 - **Dot Notation**: `obj.key`, `obj.nested.data` (Read access).
-- **Variables**: 
-    - `let`, `const`, `var` supported.
-    - Declaration without assignment: `let x: number;`
-    - Reassignment: `x = 5;`
+- **Variables**: `let` (optional assignment), `const`, `var`. Reassignment supported. **Type Inference** (`let x = 5`).
 - **Arrays**:
     - Creation: `let arr = [1, 2, 3];`
     - Types: `number[]`, `string[]`, `any[]`.

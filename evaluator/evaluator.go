@@ -92,18 +92,23 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		if node.Token.Type == token.VAR {
 			// VAR allows redeclaration
 		} else {
-			// LET and CONST do not allow redeclaration
-			// However, in our REPL/single-run mode, we might want to be lenient or strict.
-			// Standard JS: SyntaxError if redeclared in same scope.
 			if _, ok := env.GetCurrent(node.Name.Value); ok {
 				return newError("cannot redeclare block-scoped variable '%s'", node.Name.Value)
 			}
 		}
 
-		if node.Name.Type != "" && val != NULL {
-			if err := checkType(val, node.Name.Type); err != nil {
-				return err
+		if node.Name.Type != "" {
+			// Abstract this check?
+			if val != NULL {
+				if err := checkType(val, node.Name.Type); err != nil {
+					return err
+				}
 			}
+			env.SetType(node.Name.Value, node.Name.Type)
+		} else if val != NULL {
+			// Infer type from value
+			inferred := inferType(val)
+			env.SetType(node.Name.Value, inferred)
 		}
 
 		env.Set(node.Name.Value, val)
@@ -116,9 +121,25 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		body := node.Body
 		fn := &object.Function{Parameters: params, Env: env, Body: body}
 		if node.Name != "" {
-			env.Set(node.Name, fn)
+			env.Set(node.Name, fn) // Function declarations usually hoist or valid in scope.
+			// fn objects? Type is 'function'?
+			// We haven't implemented function type checking rigorously yet.
 		}
 		return fn
+
+	case *ast.ArrowFunctionLiteral:
+		params := node.Parameters
+		body := node.Body
+
+		var bodyStmt *ast.BlockStatement
+		if bs, ok := body.(*ast.BlockStatement); ok {
+			bodyStmt = bs
+		} else {
+			returnStmt := &ast.ReturnStatement{ReturnValue: body.(ast.Expression)}
+			bodyStmt = &ast.BlockStatement{Statements: []ast.Statement{returnStmt}}
+		}
+
+		return &object.Function{Parameters: params, Env: env, Body: bodyStmt}
 
 	case *ast.HashLiteral:
 		return evalHashLiteral(node, env)
@@ -150,14 +171,17 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		}
 
 		if ident, ok := left.(*ast.Identifier); ok {
-			// Check if variable exists before assigning?
-			// For now, let's just Set it.
-			// Ideally we should check if it's CONST or if it exists in scope chain.
-			// Assuming recursive Set for now or just simple Set.
-			// If we want to verify existence:
 			if _, ok := env.Get(ident.Value); !ok {
 				return newError("identifier not found: %s", ident.Value)
 			}
+
+			// Check established type (declared or inferred)
+			if declaredType, ok := env.GetType(ident.Value); ok {
+				if err := checkType(val, declaredType); err != nil {
+					return err
+				}
+			}
+
 			env.Set(ident.Value, val)
 			return val
 		}
@@ -685,4 +709,17 @@ func checkType(obj object.Object, typeName string) *object.Error {
 		return nil
 	}
 	return nil
+}
+
+func inferType(obj object.Object) string {
+	switch obj.Type() {
+	case object.INTEGER_OBJ:
+		return "number"
+	case object.BOOLEAN_OBJ:
+		return "boolean"
+	case object.STRING_OBJ:
+		return "string"
+	default:
+		return "any"
+	}
 }

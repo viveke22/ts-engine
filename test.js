@@ -67,3 +67,14 @@ let newLet = "modern";
 const constant = "immutable";
 
 console.log(oldVar + ", " + newLet + ", " + constant);
+//simple arrow function
+const adding = (a, b) => a + b;
+console.log("Add(5, 5): " + adding(5, 5));
+//simple arrow function with no parameters
+const greeting = () => "Hello Arrow!";
+console.log(greeting());
+//standard arrow function with return
+const addeded = (a, b) => {
+    return a + b;
+};
+console.log("Add(5, 5): " + addeded(5, 5));

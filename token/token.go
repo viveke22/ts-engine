@@ -24,6 +24,7 @@ const (
 	ASTERISK = "*"
 	SLASH    = "/"
 	MOD      = "%"
+	ARROW    = "=>"
 
 	LT = "<"
 	GT = ">"

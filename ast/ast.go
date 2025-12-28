@@ -381,3 +381,30 @@ func (ae *AssignmentExpression) String() string {
 
 	return out.String()
 }
+
+type ArrowFunctionLiteral struct {
+	Token      token.Token // The arrow token '=>'
+	Parameters []*Identifier
+	Body       Node   // BlockStatement or Expression
+	ReturnType string // Optional return type
+}
+
+func (afl *ArrowFunctionLiteral) expressionNode()      {}
+func (afl *ArrowFunctionLiteral) TokenLiteral() string { return afl.Token.Literal }
+func (afl *ArrowFunctionLiteral) String() string {
+	var out bytes.Buffer
+
+	out.WriteString("(")
+	params := []string{}
+	for _, p := range afl.Parameters {
+		params = append(params, p.String())
+	}
+	out.WriteString(strings.Join(params, ", "))
+	out.WriteString(") => ")
+
+	if afl.Body != nil {
+		out.WriteString(afl.Body.String())
+	}
+
+	return out.String()
+}
