@@ -19,3 +19,17 @@ console.log("Testing Fetch...");
 const res = fetch("https://google.com");
 console.log("Fetch returned: " + res);
 console.log("Arrow.js tests complete");
+const server = http.createServer(function (req, res) {
+    console.log("Request received:", req.method, req.url);
+    if (req.url === '/' && req.method === 'GET') {
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end('<h1>Hello from TS Engine!</h1> ');
+    } else {
+        res.writeHead(404);
+        res.end('Not Found');
+    }
+});
+
+server.listen(3000, function () {
+    console.log('Server running on http://localhost:3000');
+});
