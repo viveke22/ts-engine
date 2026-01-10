@@ -17,14 +17,16 @@ const (
 	STRING = "STRING" // "foobar"
 
 	// Operators
-	ASSIGN   = "="
-	PLUS     = "+"
-	MINUS    = "-"
-	BANG     = "!"
-	ASTERISK = "*"
-	SLASH    = "/"
-	MOD      = "%"
-	ARROW    = "=>"
+	ASSIGN      = "="
+	PLUS        = "+"
+	MINUS       = "-"
+	BANG        = "!"
+	ASTERISK    = "*"
+	SLASH       = "/"
+	MOD         = "%"
+	ARROW       = "=>"
+	PLUS_PLUS   = "++"
+	MINUS_MINUS = "--"
 
 	LT = "<"
 	GT = ">"
@@ -65,6 +67,7 @@ const (
 	IMPORT   = "IMPORT"
 	FROM     = "FROM"
 	AS       = "AS"
+	FOR      = "FOR"
 )
 
 var keywords = map[string]TokenType{
@@ -83,6 +86,7 @@ var keywords = map[string]TokenType{
 	"import":   IMPORT,
 	"from":     FROM,
 	"as":       AS,
+	"for":      FOR,
 }
 
 func LookupIdent(ident string) TokenType {

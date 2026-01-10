@@ -22,6 +22,7 @@ const (
 	PREFIX      // -X or !X
 	CALL        // myFunction(X)
 	INDEX       // array[index]
+	POSTFIX     // i++
 )
 
 var precedences = map[token.TokenType]int{
@@ -43,6 +44,8 @@ var precedences = map[token.TokenType]int{
 	token.LBRACKET:      INDEX,
 	token.ASSIGN:        ASSIGN,
 	token.ARROW:         ASSIGN,
+	token.PLUS_PLUS:     POSTFIX,
+	token.MINUS_MINUS:   POSTFIX,
 }
 
 type (
@@ -106,6 +109,8 @@ func New(l *lexer.Lexer, strict bool) *Parser {
 	p.registerInfix(token.LBRACKET, p.parseIndexExpression)
 	p.registerInfix(token.ASSIGN, p.parseAssignmentExpression)
 	p.registerInfix(token.ARROW, p.parseArrowFunctionInfix)
+	p.registerInfix(token.PLUS_PLUS, p.parsePostfixExpression)
+	p.registerInfix(token.MINUS_MINUS, p.parsePostfixExpression)
 
 	// Read two tokens, so curToken and peekToken are both set
 	p.nextToken()
@@ -156,6 +161,8 @@ func (p *Parser) parseStatement() ast.Statement {
 		return p.parseDeclareStatement()
 	case token.IMPORT:
 		return p.parseImportStatement()
+	case token.FOR:
+		return p.parseForStatement()
 	default:
 		return p.parseExpressionStatement()
 	}
@@ -888,7 +895,78 @@ func (p *Parser) parseArrowFunctionInfix(left ast.Expression) ast.Expression {
 	}
 
 	params := []*ast.Identifier{ident}
-	// Pass empty return type? Or parse it?
 	// x => ... implies no return type annotation on 'x' itself usually, unless (x): type => ... which is handled by grouped exp.
 	return p.parseArrowFunction(params, "")
+}
+
+func (p *Parser) parseForStatement() *ast.ForStatement {
+	stmt := &ast.ForStatement{Token: p.curToken}
+
+	if !p.expectPeek(token.LPAREN) {
+		return nil
+	}
+
+	p.nextToken() // consume LPAREN
+
+	// Parse Init
+	if p.curTokenIs(token.SEMICOLON) {
+		stmt.Init = nil // Empty init
+		// Do not consume semicolon here, let logic below handle or expect it?
+		// Actually, if init is empty, we are AT semicolon.
+		// We need to consume it to move to condition.
+		p.nextToken()
+	} else {
+		stmt.Init = p.parseStatement()
+		// parseStatement consumes the semicolon for Let/Var/Return.
+		// But for ExpressionStatement, it might be optional?
+		// If Init was `i=0` (no semi), parseStatement consumes `i=0`. Semicolon is next.
+		// We need to verify we parsed correctly.
+
+		// If parseStatement consumed the semicolon, good.
+		// If not, we might be at semicolon now.
+		if p.curTokenIs(token.SEMICOLON) {
+			p.nextToken()
+		}
+	}
+
+	// Parse Condition
+	if !p.curTokenIs(token.SEMICOLON) {
+		stmt.Condition = p.parseExpression(LOWEST)
+	}
+
+	if !p.expectPeek(token.SEMICOLON) {
+		return nil
+	}
+	// ensure at proper token for Update
+	p.nextToken()
+
+	// Parse Update
+	if !p.curTokenIs(token.RPAREN) {
+		// Update is expression
+		exp := p.parseExpression(LOWEST)
+		if exp != nil {
+			stmt.Update = &ast.ExpressionStatement{Token: p.curToken, Expression: exp}
+		}
+	}
+
+	if !p.expectPeek(token.RPAREN) {
+		return nil
+	}
+
+	if !p.expectPeek(token.LBRACE) {
+		return nil
+	}
+
+	stmt.Body = p.parseBlockStatement()
+
+	return stmt
+}
+
+func (p *Parser) parsePostfixExpression(left ast.Expression) ast.Expression {
+	return &ast.UpdateExpression{
+		Token:    p.curToken,
+		Operator: p.curToken.Literal,
+		Left:     left,
+		Postfix:  true,
+	}
 }

@@ -39,6 +39,9 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		}
 		return evalPrefixExpression(node.Operator, right)
 
+	case *ast.UpdateExpression:
+		return evalUpdateExpression(node, env)
+
 	case *ast.InfixExpression:
 		// Special handling for dot operator to avoid evaluating the property as a variable
 		if node.Operator == "." {
@@ -61,6 +64,52 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 
 	case *ast.BlockStatement:
 		return evalBlockStatement(node, env)
+
+	case *ast.ForStatement:
+		// Create a new scope for the initialization variable (like let i=0)
+		loopEnv := object.NewEnclosedEnvironment(env)
+
+		if node.Init != nil {
+			err := Eval(node.Init, loopEnv)
+			if isError(err) {
+				return err
+			}
+		}
+
+		for {
+			if node.Condition != nil {
+				condition := Eval(node.Condition, loopEnv)
+				if isError(condition) {
+					return condition
+				}
+				if !isTruthy(condition) {
+					break
+				}
+			}
+
+			err := Eval(node.Body, loopEnv) // Body should share scope or new scope?
+			// In JS, closure inside loop captures 'i' differently for let/var.
+			// But for now, simple execution.
+			// However, if we don't start new scope, vars declared in body leak to loopEnv (ok)
+			if err != nil {
+				rt := err.Type()
+				if rt == object.RETURN_VALUE_OBJ {
+					return err
+				}
+				if rt == object.ERROR_OBJ {
+					return err
+				}
+				// TODO: break/continue statement support
+			}
+
+			if node.Update != nil {
+				err := Eval(node.Update, loopEnv)
+				if isError(err) {
+					return err
+				}
+			}
+		}
+		return NULL
 
 	case *ast.IfExpression:
 		return evalIfExpression(node, env)
@@ -182,7 +231,7 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 				}
 			}
 
-			env.Set(ident.Value, val)
+			env.Update(ident.Value, val)
 			return val
 		}
 		return newError("assignment to non-identifier not supported yet")
@@ -254,6 +303,42 @@ func evalPrefixExpression(operator string, right object.Object) object.Object {
 	default:
 		return newError("unknown operator: %s%s", operator, right.Type())
 	}
+}
+
+func evalUpdateExpression(node *ast.UpdateExpression, env *object.Environment) object.Object {
+	// For now, Left is usually Identifier. Support only Identifier for update.
+	ident, ok := node.Left.(*ast.Identifier)
+	if !ok {
+		return newError("update operator applied to non-identifier")
+	}
+
+	val, ok := env.Get(ident.Value)
+	if !ok {
+		return newError("identifier not found: %s", ident.Value)
+	}
+
+	if val.Type() != object.INTEGER_OBJ {
+		return newError("update operator requires integer, got %s", val.Type())
+	}
+
+	intVal := val.(*object.Integer).Value
+	var newVal int64
+
+	switch node.Operator {
+	case "++":
+		newVal = intVal + 1
+	case "--":
+		newVal = intVal - 1
+	default:
+		return newError("unknown update operator: %s", node.Operator)
+	}
+
+	env.Update(ident.Value, &object.Integer{Value: newVal})
+
+	if node.Postfix {
+		return &object.Integer{Value: intVal} // Return old value
+	}
+	return &object.Integer{Value: newVal} // Return new value
 }
 
 func evalInfixExpression(operator string, left, right object.Object) object.Object {

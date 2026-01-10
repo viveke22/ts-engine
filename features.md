@@ -59,8 +59,8 @@ Native support for building web servers and making requests.
 ### 🛠️ Functions & Control Flow
 - **Functions**: First-class citizens. `function name() {}` or `let name = function() {}`.
 - **Recursion**: Fully supported.
-- **Control Flow**: `if`, `else if`, `else`, `while` loops.
-- **Operators**: Arithmetic, Logical (`&&`, `||`, `!`), Comparison (`===`, `!==`, etc.).
+- **Control Flow**: `if`, `else if`, `else`, `for` loops, `while` loops (planned).
+- **Operators**: Arithmetic, Logical (`&&`, `||`, `!`), Comparison (`===`, `!==`, etc.), Increment/Decrement (`++`, `--`).
 
 ### 🖥️ Built-ins
 - **Console**: `console.log(...)`.

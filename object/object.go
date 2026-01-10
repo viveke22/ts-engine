@@ -115,6 +115,22 @@ func (e *Environment) GetType(name string) (string, bool) {
 	return t, ok
 }
 
+func (e *Environment) Update(name string, val Object) Object {
+	if _, ok := e.store[name]; ok {
+		e.store[name] = val
+		return val
+	}
+	if e.outer != nil {
+		return e.outer.Update(name, val)
+	}
+	// Should not happen if Get checked existence, but fallback to local set?
+	// Or return nil to indicate not found?
+	// Safest is to assume it's local if not found (global implicit), but TS is strict.
+	// Evaluator checks Get first. So we can just set locally if traversal fails?
+	// Actually if Assign checks existence, Update should find it.
+	return nil
+}
+
 type Function struct {
 	Parameters []*ast.Identifier
 	Body       *ast.BlockStatement

@@ -144,6 +144,42 @@ func (bs *BlockStatement) String() string {
 	return out.String()
 }
 
+type ForStatement struct {
+	Token     token.Token // The 'for' token
+	Init      Statement
+	Condition Expression
+	Update    Statement
+	Body      *BlockStatement
+}
+
+func (fs *ForStatement) statementNode()       {}
+func (fs *ForStatement) TokenLiteral() string { return fs.Token.Literal }
+func (fs *ForStatement) String() string {
+	var out bytes.Buffer
+
+	out.WriteString(fs.TokenLiteral() + " (")
+	if fs.Init != nil {
+		out.WriteString(fs.Init.String()) // Init usually includes semicolon if it's LetStatement. But if it's expression statement?
+		// We'll handle semicolon in String() logic or rely on statement's String().
+	}
+	// out.WriteString("; ") // Init has semicolon usually.
+
+	// Actually, let's keep it simple. We might duplicate semicolons in String output but it's debug only.
+	out.WriteString("; ")
+
+	if fs.Condition != nil {
+		out.WriteString(fs.Condition.String())
+	}
+	out.WriteString("; ")
+	if fs.Update != nil {
+		out.WriteString(fs.Update.String())
+	}
+	out.WriteString(") ")
+	out.WriteString(fs.Body.String())
+
+	return out.String()
+}
+
 type Identifier struct {
 	Token token.Token // the token.IDENT token
 	Value string
@@ -171,6 +207,31 @@ type StringLiteral struct {
 func (sl *StringLiteral) expressionNode()      {}
 func (sl *StringLiteral) TokenLiteral() string { return sl.Token.Literal }
 func (sl *StringLiteral) String() string       { return sl.Token.Literal }
+
+type UpdateExpression struct {
+	Token    token.Token // ++ or --
+	Operator string
+	Left     Expression // The variable, e.g. i
+	Postfix  bool       // true for i++, false for ++i
+}
+
+func (ue *UpdateExpression) expressionNode()      {}
+func (ue *UpdateExpression) TokenLiteral() string { return ue.Token.Literal }
+func (ue *UpdateExpression) String() string {
+	var out bytes.Buffer
+
+	out.WriteString("(")
+	if !ue.Postfix {
+		out.WriteString(ue.Operator)
+	}
+	out.WriteString(ue.Left.String())
+	if ue.Postfix {
+		out.WriteString(ue.Operator)
+	}
+	out.WriteString(")")
+
+	return out.String()
+}
 
 type PrefixExpression struct {
 	Token    token.Token // The prefix token, e.g. ! or -
