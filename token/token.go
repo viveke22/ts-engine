@@ -68,6 +68,7 @@ const (
 	FROM     = "FROM"
 	AS       = "AS"
 	FOR      = "FOR"
+	WHILE    = "WHILE"
 )
 
 var keywords = map[string]TokenType{
@@ -87,6 +88,7 @@ var keywords = map[string]TokenType{
 	"from":     FROM,
 	"as":       AS,
 	"for":      FOR,
+	"while":    WHILE,
 }
 
 func LookupIdent(ident string) TokenType {

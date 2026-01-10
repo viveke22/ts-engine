@@ -62,6 +62,36 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		}
 		return evalInfixExpression(node.Operator, left, right)
 
+	case *ast.WhileStatement:
+		for {
+			condition := Eval(node.Condition, env)
+			if isError(condition) {
+				return condition
+			}
+			if !isTruthy(condition) {
+				break
+			}
+
+			// Block scope for body
+			// We effectively treat the body block as a new scope.
+			// But note: if we wrap the body execution in NewEnclosedEnvironment(env),
+			// then `evalBlockStatement` uses that.
+			bodyEnv := object.NewEnclosedEnvironment(env)
+			err := Eval(node.Body, bodyEnv)
+
+			if err != nil {
+				rt := err.Type()
+				if rt == object.RETURN_VALUE_OBJ {
+					return err
+				}
+				if rt == object.ERROR_OBJ {
+					return err
+				}
+				// Break/Continue handling to do
+			}
+		}
+		return NULL
+
 	case *ast.BlockStatement:
 		return evalBlockStatement(node, env)
 
