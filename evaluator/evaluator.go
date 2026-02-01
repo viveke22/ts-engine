@@ -743,6 +743,10 @@ func init() {
 					}
 				}
 
+				if name.Value == "fs" {
+					return createFsModule()
+				}
+
 				return newError("module not found: %s", name.Value)
 			},
 		},

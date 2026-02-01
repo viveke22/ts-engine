@@ -65,6 +65,7 @@ Native support for building web servers and making requests.
 ###  Built-ins
 - **Console**: `console.log(...)`.
 - **Fetch**: `fetch(url)`.
+- **File System**: `import * as fs from 'fs'`. Supports `writeFileSync`, `readFileSync`, `removeSync`, `existsSync`.
 
 ---
 

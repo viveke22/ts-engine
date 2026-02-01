@@ -32,3 +32,10 @@ interface Console {
     log(...args: any[]): void;
 }
 declare var console: Console;
+
+declare module "fs" {
+    export function writeFileSync(path: string, content: string): void;
+    export function readFileSync(path: string): string;
+    export function removeSync(path: string): void;
+    export function existsSync(path: string): boolean;
+}
