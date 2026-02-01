@@ -46,6 +46,7 @@ var precedences = map[token.TokenType]int{
 	token.ARROW:         ASSIGN,
 	token.PLUS_PLUS:     POSTFIX,
 	token.MINUS_MINUS:   POSTFIX,
+	token.AS:            LESSGREATER,
 }
 
 type (
@@ -111,6 +112,7 @@ func New(l *lexer.Lexer, strict bool) *Parser {
 	p.registerInfix(token.ARROW, p.parseArrowFunctionInfix)
 	p.registerInfix(token.PLUS_PLUS, p.parsePostfixExpression)
 	p.registerInfix(token.MINUS_MINUS, p.parsePostfixExpression)
+	p.registerInfix(token.AS, p.parseAsExpression)
 
 	// Read two tokens, so curToken and peekToken are both set
 	p.nextToken()
@@ -792,6 +794,15 @@ func (p *Parser) parseTypeAnnotation() string {
 	}
 
 	return typeName
+}
+
+func (p *Parser) parseAsExpression(left ast.Expression) ast.Expression {
+	exp := &ast.AsExpression{Token: p.curToken, Left: left}
+
+	// parseTypeAnnotation parses the type starting from valid next token
+	exp.Type = p.parseTypeAnnotation()
+
+	return exp
 }
 
 func (p *Parser) parseTupleType() string {

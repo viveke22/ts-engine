@@ -488,3 +488,23 @@ func (afl *ArrowFunctionLiteral) String() string {
 
 	return out.String()
 }
+
+type AsExpression struct {
+	Token token.Token // The 'as' token
+	Left  Expression
+	Type  string // The type annotation
+}
+
+func (ae *AsExpression) expressionNode()      {}
+func (ae *AsExpression) TokenLiteral() string { return ae.Token.Literal }
+func (ae *AsExpression) String() string {
+	var out bytes.Buffer
+
+	out.WriteString("(")
+	out.WriteString(ae.Left.String())
+	out.WriteString(" as ")
+	out.WriteString(ae.Type)
+	out.WriteString(")")
+
+	return out.String()
+}

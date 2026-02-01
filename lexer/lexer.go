@@ -1,6 +1,8 @@
 package lexer
 
-import "ts-engine/token"
+import (
+	"ts-engine/token"
+)
 
 type Lexer struct {
 	input        string

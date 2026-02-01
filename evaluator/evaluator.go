@@ -147,6 +147,9 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 	case *ast.ExportStatement:
 		return NULL
 
+	case *ast.AsExpression:
+		return Eval(node.Left, env)
+
 	case *ast.ImportStatement:
 		return evalImportStatement(node, env)
 
@@ -569,6 +572,15 @@ func evalDotIndexExpression(left object.Object, rightNode ast.Node) object.Objec
 			return NULL
 		}
 		return val
+	} else if left.Type() == object.STRING_OBJ {
+		str := left.(*object.String)
+		ident, ok := rightNode.(*ast.Identifier)
+		if !ok {
+			return newError("expected identifier after dot")
+		}
+		if ident.Value == "length" {
+			return &object.Integer{Value: int64(len(str.Value))}
+		}
 	}
 	return newError("property access not supported on %s", left.Type())
 }
