@@ -756,14 +756,11 @@ func (p *Parser) parseImportStatement() ast.Statement {
 
 func (p *Parser) parseDeclareStatement() ast.Statement {
 	// declare var x: any;
-	// Just consume until semicolon
+	// Consume until semicolon
 	for !p.curTokenIs(token.SEMICOLON) && !p.curTokenIs(token.EOF) {
 		p.nextToken()
 	}
-	// Do NOT consume the semicolon here; ParseProgram loop does p.nextToken()
-	// which expects curToken to be the last token of the statement (e.g. semicolon).
-
-	// Return nil effectively ignores this statement in the AST
+	// ParseProgram loop will consume the semicolon/transition
 	return nil
 }
 
@@ -890,7 +887,6 @@ func (p *Parser) parseArrowFunctionInfix(left ast.Expression) ast.Expression {
 	}
 
 	params := []*ast.Identifier{ident}
-	// x => ... implies no return type annotation on 'x' itself usually, unless (x): type => ... which is handled by grouped exp.
 	return p.parseArrowFunction(params, "")
 }
 
@@ -910,13 +906,7 @@ func (p *Parser) parseForStatement() *ast.ForStatement {
 		p.nextToken()
 	} else {
 		stmt.Init = p.parseStatement()
-		// parseStatement consumes the semicolon for Let/Var/Return.
-		// But for ExpressionStatement, it might be optional?
-		// If Init was `i=0` (no semi), parseStatement consumes `i=0`. Semicolon is next.
-		// We need to verify we parsed correctly.
 
-		// If parseStatement consumed the semicolon, good.
-		// If not, we might be at semicolon now.
 		if p.curTokenIs(token.SEMICOLON) {
 			p.nextToken()
 		}
