@@ -123,11 +123,7 @@ func (e *Environment) Update(name string, val Object) Object {
 	if e.outer != nil {
 		return e.outer.Update(name, val)
 	}
-	// Should not happen if Get checked existence, but fallback to local set?
-	// Or return nil to indicate not found?
-	// Safest is to assume it's local if not found (global implicit), but TS is strict.
-	// Evaluator checks Get first. So we can just set locally if traversal fails?
-	// Actually if Assign checks existence, Update should find it.
+	// If not found in any scope, return nil
 	return nil
 }
 
@@ -155,22 +151,6 @@ func (f *Function) Inspect() string {
 
 	return out.String()
 }
-
-// For now, since we didn't define BlockStatement in AST yet (oops, missed that in AST step), let's just use Statement or define it now.
-// Actually, looking back at AST, I missed BlockStatement. I should add it to AST or just use a list of statements.
-// Let's check AST again. I defined Program which has Statements.
-// For Function Body, it usually is a BlockStatement.
-// Let's just use *ast.Program for Body for now to keep it simple or add BlockStatement to AST.
-// Adding BlockStatement to AST is better. I'll do a quick fix to AST in a bit if needed, but for now let's just say Body is *ast.Program or similar? No, that's wrong.
-// Let's just use `[]ast.Statement` for Body in Function object for simplicity if we don't want to touch AST again, OR better, let's add BlockStatement to AST.
-// Wait, I can't easily edit AST without `multi_replace`.
-// Let's check `ast.go` content again.
-// I see `Program` has `Statements`.
-// I'll just use `[]ast.Statement` for the Function body in `object` package for now to avoid circular deps or complex edits, or just `*ast.BlockStatement` and assume I'll add it.
-// Actually, I'll add `BlockStatement` to `ast/ast.go` first. It's cleaner.
-
-// Wait, I'll just use `*ast.Program` as a hack for "Block" if I don't want to edit AST, but that's ugly.
-// Let's edit `ast/ast.go` to add `BlockStatement`.
 
 type BuiltinFunction func(args ...Object) Object
 

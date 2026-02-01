@@ -5,7 +5,7 @@ A lightweight, high-performance TypeScript runtime written in Go. `ts-engine` co
 ## Unqiue Selling Point
 Unlike Node.js or Deno which rely on V8, `ts-engine` is a custom implementation built from scratch in Go.
 
-## 🚀 Usage
+##  Usage
 
 ### Running Code
 To execute a TypeScript file immediately:
@@ -28,10 +28,10 @@ tse build <filename.ts>
 
 This will generate a `<filename>.exe` that runs on any compatible machine, even if they don't have `ts-engine` installed!
 
-## 📥 Installation
-(Instructions to download `tse.exe` would go here - e.g. "Download the latest release from the Releases page")
+##  Installation
+download `tse.exe` not all architectures are supported
 
-## ✨ Features
+##  Features
 We support variables (`const`, `let`, `var`), functions, type annotations, control flow (`if/else`), and more. 
 
-👉 **[See features.md](features.md) for a full list of implemented and upcoming features.**
+ **[See features.md](features.md) for a full list of implemented and upcoming features.**

@@ -218,35 +218,8 @@ func (l *Lexer) readNumber() string {
 
 func (l *Lexer) readString(quote byte) string {
 	var out []byte
-	// Skip the opening quote
-	// We are already called after NextToken consumed the opening quote?
-	// Wait, NextToken case '"': calls l.readString('"').
-	// position was l.position + 1 (start of content).
-	// But l.readChar() is called inside loop.
+	// Skip the opening quote. NextToken already consumed it.
 
-	// Correct logic:
-	// 1. We start just after the opening quote?
-	// NextToken logic:
-	/*
-		case '"':
-			tok.Type = token.STRING
-			tok.Literal = l.readString('"')
-	*/
-	// Lexer is at '"'.
-	// readString should consume content until closing quote.
-
-	// My previous readString used slicing:
-	/*
-		position := l.position + 1
-		for {
-			l.readChar()
-			...
-		}
-		return l.input[position:l.position]
-	*/
-	// This implies l.position was at '"' when called.
-
-	// New logic:
 	for {
 		l.readChar()
 		if l.ch == quote || l.ch == 0 {

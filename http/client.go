@@ -67,13 +67,6 @@ func convertJsonToObject(v interface{}) object.Object {
 	case string:
 		return &object.String{Value: val}
 	case []interface{}:
-		// Arrays not fully supported yet in object system??
-		// Check implementation plans. We have Arrays support in lexer/parser?
-		// Features.md says "Arrays: Basic array support (via host integration)".
-		// But in `object/object.go`?
-		// Let's assume we return NULL or String representation for now if ArrayObj is missing.
-		// Wait, I should check object.go for Array support.
-		// Assuming we don't have Array object yet, fallback to string?
 		return &object.String{Value: "[Array]"}
 	case map[string]interface{}:
 		pairs := make(map[string]object.Object)

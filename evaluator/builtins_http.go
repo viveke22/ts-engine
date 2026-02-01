@@ -47,21 +47,9 @@ func createHttpServer(args ...object.Object) object.Object {
 			addr := ":" + strconv.Itoa(port)
 
 			// Execute listen callback immediately just to simulate "started" if valid
-			// In Node, this happens after 'listening' event. We'll just call it before blocking or async.
-			// But ListenAndServe blocks. So we should probably call it before?
-			// But if it fails, we shouldn't have called it.
-			// Ideally, run ListenAndServe in goroutine.
-
 			go func() {
-				// We need a way to keep main alive?
-				// For now, let's assume valid server script ends with .listen() and we want to BLOCK.
-				// If we run in goroutine, the script finishes and program exits.
-				// The user provided code has .listen() at the end.
+				// Server loop blocks here usually
 			}()
-
-			// If we block, we can't run the callback?
-			// The callback is usually "Server running...".
-			// If we block, we never run it.
 
 			// Simple hack: Run callback, then block.
 			if listenCb != nil {
@@ -78,10 +66,7 @@ func createHttpServer(args ...object.Object) object.Object {
 					},
 				}
 
-				// 2. Wrap Response
-				// We need methods: writeHead, end
-				// We can't use a simple Hash because it needs methods that close over 'w'.
-				// But we can return a Hash full of Builtins!
+				// 2. Wrap Response methods: writeHead, end
 
 				tsRes := &object.Hash{
 					Pairs: map[string]object.Object{

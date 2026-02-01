@@ -202,10 +202,7 @@ func (p *Parser) parseLetStatement() *ast.LetStatement {
 		p.nextToken() // consume COLON
 		stmt.Name.Type = p.parseTypeAnnotation()
 	}
-	// In strict mode, we allowed to rely on Type Inference now.
-	// So strictly speaking, missing type is OK if we have an assignment.
-	// Ideally we enforce: if Strict && no Assignment && no Type -> Error.
-	// But let's just relax it for now to support 'let x = 5'.
+	// Strict mode relaxation: allow missing type if assignment exists (inference), for now.
 
 	// Declaration without assignment: let x: number;
 	if p.peekTokenIs(token.SEMICOLON) {
@@ -811,11 +808,7 @@ func (p *Parser) parseTupleType() string {
 
 	for {
 		// Parse the inner type
-		// parseTypeAnnotation expects to be called *before* the type token
-		// Since we are at [ or , (previous token), and peek is the start of type.
-		// e.g. [ string
-		// cur=[, peek=string.
-		// parseTypeAnnotation calls nextToken -> cur=string. Correct.
+		// parseTypeAnnotation calls nextToken appropriately.
 
 		typeStr := p.parseTypeAnnotation()
 		types = append(types, typeStr)
@@ -913,9 +906,7 @@ func (p *Parser) parseForStatement() *ast.ForStatement {
 	// Parse Init
 	if p.curTokenIs(token.SEMICOLON) {
 		stmt.Init = nil // Empty init
-		// Do not consume semicolon here, let logic below handle or expect it?
-		// Actually, if init is empty, we are AT semicolon.
-		// We need to consume it to move to condition.
+		// Consume semicolon to proceed to condition
 		p.nextToken()
 	} else {
 		stmt.Init = p.parseStatement()

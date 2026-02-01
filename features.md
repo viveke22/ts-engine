@@ -2,17 +2,17 @@
 
 ## Implemented Features
 
-### 🚀 Direct Execution
+### Direct Execution
 Run TypeScript files directly without manual transpilation.
 - **Command**: `tse <filename.ts>`
 - **Execution**: AST-walking interpreter written in Go.
 
-### 📦 Build System
+###  Build System
 Create standalone, distributable executables from your TypeScript code.
 - **Command**: `tse build <filename.ts>`
 - **Output**: A native `.exe` file that works without needing `tse` installed.
 
-### 🌐 HTTP Server & Client
+###  HTTP Server & Client
 Native support for building web servers and making requests.
 - **Server**: `http.createServer((req, res) => { ... })`
 - **Listen**: `server.listen(port, callback)`
@@ -25,20 +25,20 @@ Native support for building web servers and making requests.
     - Returns response object with `status`, `ok`, `statusText`.
     - Methods: `.text()`, `.json()`.
 
-### 📦 Modules & Imports
+###  Modules & Imports
 - **Import Syntax**: `import * as http from 'http';` supported.
 - **Require**: Legacy `require('http')` supported.
 - **File Isolation**: `export {}` makes a file a module.
 - **Built-in Modules**: `http` (internal).
 
-### 🔒 Strict Mode & Types
+###  Strict Mode & Types
 - **Strict Mode**: Implicitly enabled for `.ts` files. Enforces mandatory type annotations.
 - **Loose Mode**: `.js` files allow missing types.
 - **Supported Types**: `number`, `string`, `boolean`, `any`, `unknown`, `never`.
 - **Complex Types**: Dotted types like `http.IncomingMessage` are accepted (treated as `any` at runtime).
 - **IDE Support**: `ts-engine.d.ts` provided for full IntelliSense.
 
-### 📝 Objects & Variables
+###  Objects & Variables
 - **Declarations**: `let`, `const`, `var`.
 - **Strings**: Single `'` and double `"` quotes.
 - **Multi-line Strings**: Backticks `` ` `` supported (Template Literals without interpolation yet).
@@ -56,19 +56,19 @@ Native support for building web servers and making requests.
     - Dot Notation: `obj.x`
     - Bracket Notation: `obj["x"]`
 
-### 🛠️ Functions & Control Flow
+###  Functions & Control Flow
 - **Functions**: First-class citizens. `function name() {}` or `let name = function() {}`.
 - **Recursion**: Fully supported.
 - **Control Flow**: `if`, `else if`, `else`, `for` loops, `while` loops.
 - **Operators**: Arithmetic, Logical (`&&`, `||`, `!`), Comparison (`===`, `!==`, etc.), Increment/Decrement (`++`, `--`).
 
-### 🖥️ Built-ins
+###  Built-ins
 - **Console**: `console.log(...)`.
 - **Fetch**: `fetch(url)`.
 
 ---
 
-## 🔮 Upcoming Features (Roadmap)
+##  Upcoming Features (Roadmap)
 
 We are actively working on expanding `ts-engine`. Planned features include:
 

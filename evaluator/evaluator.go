@@ -72,10 +72,6 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 				break
 			}
 
-			// Block scope for body
-			// We effectively treat the body block as a new scope.
-			// But note: if we wrap the body execution in NewEnclosedEnvironment(env),
-			// then `evalBlockStatement` uses that.
 			bodyEnv := object.NewEnclosedEnvironment(env)
 			err := Eval(node.Body, bodyEnv)
 
@@ -117,10 +113,7 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 				}
 			}
 
-			err := Eval(node.Body, loopEnv) // Body should share scope or new scope?
-			// In JS, closure inside loop captures 'i' differently for let/var.
-			// But for now, simple execution.
-			// However, if we don't start new scope, vars declared in body leak to loopEnv (ok)
+			err := Eval(node.Body, loopEnv)
 			if err != nil {
 				rt := err.Type()
 				if rt == object.RETURN_VALUE_OBJ {
