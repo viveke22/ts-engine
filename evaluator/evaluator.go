@@ -618,6 +618,15 @@ func evalDotIndexExpression(left object.Object, rightNode ast.Node) object.Objec
 		if ident.Value == "length" {
 			return &object.Integer{Value: float64(len(str.Value))}
 		}
+	} else if left.Type() == object.ARRAY_OBJ {
+		array := left.(*object.Array)
+		ident, ok := rightNode.(*ast.Identifier)
+		if !ok {
+			return newError("expected identifier after dot")
+		}
+		if ident.Value == "length" {
+			return &object.Integer{Value: float64(len(array.Elements))}
+		}
 	}
 	return newError("property access not supported on %s", left.Type())
 }

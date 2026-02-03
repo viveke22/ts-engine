@@ -16,3 +16,4 @@ export function mod(a: number, b: number) {
 export function float(a: number, b: number) {
     return a * b;
 }
+export const pi = 3.14159;
