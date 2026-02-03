@@ -86,13 +86,19 @@ func (rs *ReturnStatement) String() string {
 }
 
 type ExportStatement struct {
-	Token token.Token // the 'export' token
+	Token     token.Token // the 'export' token
+	Statement Statement
 }
 
 func (es *ExportStatement) statementNode()       {}
 func (es *ExportStatement) TokenLiteral() string { return es.Token.Literal }
 func (es *ExportStatement) String() string {
-	return "export {};"
+	var out bytes.Buffer
+
+	out.WriteString(es.TokenLiteral() + " ")
+	out.WriteString(es.Statement.String())
+
+	return out.String()
 }
 
 type ExpressionStatement struct {
@@ -110,9 +116,10 @@ func (es *ExpressionStatement) String() string {
 }
 
 type ImportStatement struct {
-	Token  token.Token // The 'import' token
-	Alias  *Identifier // The alias for the imported module
-	Source *StringLiteral
+	Token      token.Token // The 'import' token
+	Alias      *Identifier // The alias for the imported module (import * as Alias)
+	Specifiers []*Identifier
+	Source     *StringLiteral
 }
 
 func (is *ImportStatement) statementNode()       {}
@@ -120,8 +127,20 @@ func (is *ImportStatement) TokenLiteral() string { return is.Token.Literal }
 func (is *ImportStatement) String() string {
 	var out bytes.Buffer
 
-	out.WriteString(is.TokenLiteral() + " * as ")
-	out.WriteString(is.Alias.String())
+	out.WriteString(is.TokenLiteral() + " ")
+	if is.Alias != nil {
+		out.WriteString("* as " + is.Alias.String())
+	} else {
+		out.WriteString("{ ")
+		for i, s := range is.Specifiers {
+			out.WriteString(s.String())
+			if i < len(is.Specifiers)-1 {
+				out.WriteString(", ")
+			}
+		}
+		out.WriteString(" }")
+	}
+
 	out.WriteString(" from ")
 	out.WriteString(is.Source.String())
 	out.WriteString(";")
@@ -211,7 +230,7 @@ func (i *Identifier) String() string       { return i.Value }
 
 type IntegerLiteral struct {
 	Token token.Token
-	Value int64
+	Value float64 // Using float64 to support JS 'number' behavior
 }
 
 func (il *IntegerLiteral) expressionNode()      {}

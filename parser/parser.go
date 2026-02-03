@@ -175,17 +175,9 @@ func (p *Parser) parseStatement() ast.Statement {
 func (p *Parser) parseExportStatement() *ast.ExportStatement {
 	stmt := &ast.ExportStatement{Token: p.curToken}
 
-	if !p.expectPeek(token.LBRACE) {
-		return nil
-	}
+	p.nextToken()
 
-	if !p.expectPeek(token.RBRACE) {
-		return nil
-	}
-
-	if p.peekTokenIs(token.SEMICOLON) {
-		p.nextToken()
-	}
+	stmt.Statement = p.parseStatement()
 
 	return stmt
 }
@@ -287,9 +279,9 @@ func (p *Parser) parseIdentifier() ast.Expression {
 func (p *Parser) parseIntegerLiteral() ast.Expression {
 	lit := &ast.IntegerLiteral{Token: p.curToken}
 
-	value, err := strconv.ParseInt(p.curToken.Literal, 0, 64)
+	value, err := strconv.ParseFloat(p.curToken.Literal, 64)
 	if err != nil {
-		msg := fmt.Sprintf("could not parse %q as integer", p.curToken.Literal)
+		msg := fmt.Sprintf("could not parse %q as number", p.curToken.Literal)
 		p.errors = append(p.errors, msg)
 		return nil
 	}
@@ -719,22 +711,34 @@ func (p *Parser) parseHashLiteral() ast.Expression {
 func (p *Parser) parseImportStatement() ast.Statement {
 	stmt := &ast.ImportStatement{Token: p.curToken}
 
-	// Expect '*'
-	if !p.expectPeek(token.ASTERISK) {
+	if p.peekTokenIs(token.ASTERISK) {
+		p.nextToken() // *
+		if !p.expectPeek(token.AS) {
+			return nil
+		}
+		if !p.expectPeek(token.IDENT) {
+			return nil
+		}
+		stmt.Alias = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+	} else if p.peekTokenIs(token.LBRACE) {
+		p.nextToken() // {
+		stmt.Specifiers = []*ast.Identifier{}
+
+		for !p.peekTokenIs(token.RBRACE) {
+			if !p.expectPeek(token.IDENT) {
+				return nil
+			}
+			stmt.Specifiers = append(stmt.Specifiers, &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal})
+			if p.peekTokenIs(token.COMMA) {
+				p.nextToken()
+			}
+		}
+		if !p.expectPeek(token.RBRACE) {
+			return nil
+		}
+	} else {
 		return nil
 	}
-
-	// Expect 'as'
-	if !p.expectPeek(token.AS) {
-		return nil
-	}
-
-	// Expect Identifier (alias)
-	if !p.expectPeek(token.IDENT) {
-		return nil
-	}
-
-	stmt.Alias = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 
 	// Expect 'from'
 	if !p.expectPeek(token.FROM) {

@@ -2,10 +2,14 @@ package evaluator
 
 import (
 	"fmt"
+	"math"
+	"os"
 	"strings"
 	"ts-engine/ast"
 	"ts-engine/http"
+	"ts-engine/lexer"
 	"ts-engine/object"
+	"ts-engine/parser"
 	"ts-engine/token"
 )
 
@@ -145,7 +149,23 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		return &object.ReturnValue{Value: val}
 
 	case *ast.ExportStatement:
-		return NULL
+		val := Eval(node.Statement, env)
+		if isError(val) {
+			return val
+		}
+
+		if letStmt, ok := node.Statement.(*ast.LetStatement); ok {
+			if obj, ok := env.Get(letStmt.Name.Value); ok {
+				env.Exports[letStmt.Name.Value] = obj
+			}
+		} else if exprStmt, ok := node.Statement.(*ast.ExpressionStatement); ok {
+			if fnLit, ok := exprStmt.Expression.(*ast.FunctionLiteral); ok {
+				if fnLit.Name != "" {
+					env.Exports[fnLit.Name] = val
+				}
+			}
+		}
+		return val
 
 	case *ast.AsExpression:
 		return Eval(node.Left, env)
@@ -348,7 +368,7 @@ func evalUpdateExpression(node *ast.UpdateExpression, env *object.Environment) o
 	}
 
 	intVal := val.(*object.Integer).Value
-	var newVal int64
+	var newVal float64
 
 	switch node.Operator {
 	case "++":
@@ -458,7 +478,24 @@ func evalImportStatement(node *ast.ImportStatement, env *object.Environment) obj
 	}
 
 	// Bind result to alias
-	env.Set(node.Alias.Value, module)
+	if node.Alias != nil {
+		env.Set(node.Alias.Value, module)
+	} else {
+		// Named imports
+		hash, ok := module.(*object.Hash)
+		if !ok {
+			return newError("module export is not an object, cannot use named imports")
+		}
+
+		for _, spec := range node.Specifiers {
+			name := spec.Value
+			if val, ok := hash.Pairs[name]; ok {
+				env.Set(name, val)
+			} else {
+				return newError("export '%s' not found in module '%s'", name, source)
+			}
+		}
+	}
 
 	return NULL
 }
@@ -518,7 +555,7 @@ func evalIntegerInfixExpression(operator string, left, right object.Object) obje
 	case "/":
 		return &object.Integer{Value: leftVal / rightVal}
 	case "%":
-		return &object.Integer{Value: leftVal % rightVal}
+		return &object.Integer{Value: math.Mod(leftVal, rightVal)}
 	case "<":
 		return nativeBoolToBooleanObject(leftVal < rightVal)
 	case ">":
@@ -579,7 +616,7 @@ func evalDotIndexExpression(left object.Object, rightNode ast.Node) object.Objec
 			return newError("expected identifier after dot")
 		}
 		if ident.Value == "length" {
-			return &object.Integer{Value: int64(len(str.Value))}
+			return &object.Integer{Value: float64(len(str.Value))}
 		}
 	}
 	return newError("property access not supported on %s", left.Type())
@@ -598,8 +635,8 @@ func evalIndexExpression(left, index object.Object) object.Object {
 
 func evalArrayIndexExpression(array, index object.Object) object.Object {
 	arrayObject := array.(*object.Array)
-	idx := index.(*object.Integer).Value
-	max := int64(len(arrayObject.Elements) - 1)
+	idx := int(index.(*object.Integer).Value)
+	max := len(arrayObject.Elements) - 1
 
 	if idx < 0 || idx > max {
 		return NULL
@@ -757,6 +794,29 @@ func init() {
 
 				if name.Value == "fs" {
 					return createFsModule()
+				}
+
+				filename := name.Value
+				if !strings.HasSuffix(filename, ".ts") && !strings.HasSuffix(filename, ".js") {
+					if _, err := os.Stat(filename + ".ts"); err == nil {
+						filename += ".ts"
+					} else if _, err := os.Stat(filename + ".js"); err == nil {
+						filename += ".js"
+					}
+				}
+
+				if content, err := os.ReadFile(filename); err == nil {
+					l := lexer.New(string(content))
+					p := parser.New(l, false)
+					prog := p.ParseProgram()
+					if len(p.Errors()) > 0 {
+						return newError("parser errors in %s: %s", filename, strings.Join(p.Errors(), "; "))
+					}
+
+					newEnv := object.NewEnvironment()
+					Eval(prog, newEnv)
+
+					return &object.Hash{Pairs: newEnv.Exports}
 				}
 
 				return newError("module not found: %s", name.Value)

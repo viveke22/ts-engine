@@ -31,7 +31,7 @@ func Fetch(args ...object.Object) object.Object {
 	bodyString := string(bodyBytes)
 
 	pairs := make(map[string]object.Object)
-	pairs["status"] = &object.Integer{Value: int64(resp.StatusCode)}
+	pairs["status"] = &object.Integer{Value: float64(resp.StatusCode)}
 	pairs["ok"] = &object.Boolean{Value: resp.StatusCode >= 200 && resp.StatusCode < 300}
 	pairs["statusText"] = &object.String{Value: resp.Status}
 
@@ -63,7 +63,7 @@ func convertJsonToObject(v interface{}) object.Object {
 	case bool:
 		return &object.Boolean{Value: val}
 	case float64:
-		return &object.Integer{Value: int64(val)} // Simplified: JSON numbers are floats, we treat as int for now
+		return &object.Integer{Value: val} // JSON numbers are floats
 	case string:
 		return &object.String{Value: val}
 	case []interface{}:

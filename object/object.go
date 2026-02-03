@@ -28,11 +28,11 @@ type Object interface {
 }
 
 type Integer struct {
-	Value int64
+	Value float64
 }
 
 func (i *Integer) Type() ObjectType { return INTEGER_OBJ }
-func (i *Integer) Inspect() string  { return fmt.Sprintf("%d", i.Value) }
+func (i *Integer) Inspect() string  { return fmt.Sprintf("%g", i.Value) }
 
 type Boolean struct {
 	Value bool
@@ -71,12 +71,14 @@ type Environment struct {
 	store     map[string]Object
 	typeStore map[string]string
 	outer     *Environment
+	Exports   map[string]Object // Exported variables
 }
 
 func NewEnvironment() *Environment {
 	s := make(map[string]Object)
 	t := make(map[string]string)
-	return &Environment{store: s, typeStore: t, outer: nil}
+	e := make(map[string]Object)
+	return &Environment{store: s, typeStore: t, outer: nil, Exports: e}
 }
 
 func NewEnclosedEnvironment(outer *Environment) *Environment {
