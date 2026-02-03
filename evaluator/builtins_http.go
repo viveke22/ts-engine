@@ -1,7 +1,7 @@
 package evaluator
 
 import (
-	"fmt"
+	
 	"net/http"
 	"strconv"
 	"ts-engine/object"
@@ -56,7 +56,7 @@ func createHttpServer(args ...object.Object) object.Object {
 				applyFunction(listenCb, []object.Object{})
 			}
 
-			fmt.Printf("Starting server on %s...\n", addr)
+		//	fmt.Printf("Starting server on %s...\n", addr)
 			err := http.ListenAndServe(addr, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				// 1. Convert Request
 				tsReq := &object.Hash{
