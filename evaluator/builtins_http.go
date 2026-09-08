@@ -53,7 +53,7 @@ func createHttpServer(args ...object.Object) object.Object {
 
 			// Simple hack: Run callback, then block.
 			if listenCb != nil {
-				applyFunction(listenCb, []object.Object{})
+				applyFunction(listenCb, []object.Object{}, nil)
 			}
 
 		//	fmt.Printf("Starting server on %s...\n", addr)
@@ -116,7 +116,7 @@ func createHttpServer(args ...object.Object) object.Object {
 				}
 
 				// 3. Call Handler
-				applyFunction(handlerFn, []object.Object{tsReq, tsRes})
+				applyFunction(handlerFn, []object.Object{tsReq, tsRes}, nil)
 			}))
 
 			if err != nil {

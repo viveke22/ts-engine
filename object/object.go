@@ -90,7 +90,8 @@ type Environment struct {
 	typeStore  map[string]string
 	constStore map[string]bool
 	outer      *Environment
-	Exports    map[string]Object // Exported variables
+	Exports    map[string]Object
+	Dir        string
 }
 
 func NewEnvironment() *Environment {
@@ -104,6 +105,9 @@ func NewEnvironment() *Environment {
 func NewEnclosedEnvironment(outer *Environment) *Environment {
 	env := NewEnvironment()
 	env.outer = outer
+	if outer != nil {
+		env.Dir = outer.Dir
+	}
 	return env
 }
 

@@ -3,13 +3,10 @@ package evaluator
 import (
 	"fmt"
 	"math"
-	"os"
 	"strings"
 	"ts-engine/ast"
 	"ts-engine/http"
-	"ts-engine/lexer"
 	"ts-engine/object"
-	"ts-engine/parser"
 	"ts-engine/token"
 )
 
@@ -286,7 +283,7 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 			return args[0]
 		}
 
-		return applyFunction(function, args)
+		return applyFunction(function, args, env)
 
 	case *ast.ArrayLiteral:
 		elements := evalExpressions(node.Elements, env)
@@ -602,19 +599,7 @@ func evalBangOperatorExpression(right object.Object) object.Object {
 func evalImportStatement(node *ast.ImportStatement, env *object.Environment) object.Object {
 	source := node.Source.Value
 
-	// We reuse the 'require' builtin logic
-	requireObj, ok := builtins["require"]
-	if !ok {
-		return newError("require builtin not found")
-	}
-
-	requireFn, ok := requireObj.(*object.Builtin)
-	if !ok {
-		return newError("require is not a function")
-	}
-
-	// Call require("source")
-	module := requireFn.Fn(&object.String{Value: source})
+	module := requireModule(env, []object.Object{&object.String{Value: source}})
 	if isError(module) {
 		return module
 	}
@@ -879,7 +864,7 @@ func evalExpressions(exps []ast.Expression, env *object.Environment) []object.Ob
 	return result
 }
 
-func applyFunction(fn object.Object, args []object.Object) object.Object {
+func applyFunction(fn object.Object, args []object.Object, env *object.Environment) object.Object {
 	switch fn := fn.(type) {
 	case *object.Function:
 		extendedEnv := extendFunctionEnv(fn, args)
@@ -896,6 +881,9 @@ func applyFunction(fn object.Object, args []object.Object) object.Object {
 		return unwrapReturnValue(evaluated)
 
 	case *object.Builtin:
+		if fn == requireBuiltin {
+			return requireModule(env, args)
+		}
 		return fn.Fn(args...)
 
 	default:
@@ -966,57 +954,7 @@ func init() {
 		"fetch": &object.Builtin{
 			Fn: http.Fetch,
 		},
-		"require": &object.Builtin{
-			Fn: func(args ...object.Object) object.Object {
-				if len(args) != 1 {
-					return newError("wrong number of arguments. got=%d, want=1", len(args))
-				}
-				name, ok := args[0].(*object.String)
-				if !ok {
-					return newError("argument to `require` must be STRING, got %s", args[0].Type())
-				}
-
-				if name.Value == "http" {
-					// Return the HTTP module object
-					return &object.Hash{
-						Pairs: map[string]object.Object{
-							"createServer": &object.Builtin{
-								Fn: createHttpServer,
-							},
-						},
-					}
-				}
-
-				if name.Value == "fs" {
-					return createFsModule()
-				}
-
-				filename := name.Value
-				if !strings.HasSuffix(filename, ".ts") && !strings.HasSuffix(filename, ".js") {
-					if _, err := os.Stat(filename + ".ts"); err == nil {
-						filename += ".ts"
-					} else if _, err := os.Stat(filename + ".js"); err == nil {
-						filename += ".js"
-					}
-				}
-
-				if content, err := os.ReadFile(filename); err == nil {
-					l := lexer.New(string(content))
-					p := parser.New(l, false)
-					prog := p.ParseProgram()
-					if len(p.Errors()) > 0 {
-						return newError("parser errors in %s: %s", filename, strings.Join(p.Errors(), "; "))
-					}
-
-					newEnv := object.NewEnvironment()
-					Eval(prog, newEnv)
-
-					return &object.Hash{Pairs: newEnv.Exports}
-				}
-
-				return newError("module not found: %s", name.Value)
-			},
-		},
+		"require": requireBuiltin,
 	}
 }
 

@@ -38,7 +38,7 @@ func main() {
 		// The last part is the source code
 		if len(parts) > 1 {
 			sourceCode := string(parts[len(parts)-1])
-			runCode(sourceCode, true) // Embedded code is assumed to be TS/Strict
+			runCode(sourceCode, true, "")
 			return
 		}
 	}
@@ -68,11 +68,16 @@ func main() {
 		return
 	}
 	isStrict := strings.HasSuffix(filename, ".ts")
-	runCode(string(code), isStrict)
+	dir := ""
+	if abs, err := filepath.Abs(filename); err == nil {
+		dir = filepath.Dir(abs)
+	}
+	runCode(string(code), isStrict, dir)
 }
 
-func runCode(code string, isStrict bool) {
+func runCode(code string, isStrict bool, dir string) {
 	env := object.NewEnvironment()
+	env.Dir = dir
 	l := lexer.New(code)
 	p := parser.New(l, isStrict)
 

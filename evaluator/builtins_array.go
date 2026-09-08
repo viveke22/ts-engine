@@ -32,7 +32,7 @@ func arrayProperty(arr *object.Array, name string) object.Object {
 			mapped := make([]object.Object, 0, len(arr.Elements))
 			for i, el := range arr.Elements {
 				idx := &object.Integer{Value: float64(i)}
-				result := applyFunction(args[0], []object.Object{el, idx, arr})
+				result := applyFunction(args[0], []object.Object{el, idx, arr}, nil)
 				if isError(result) {
 					return result
 				}
