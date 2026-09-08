@@ -77,6 +77,7 @@ func New(l *lexer.Lexer, strict bool) *Parser {
 	p.registerPrefix(token.IDENT, p.parseIdentifier)
 	p.registerPrefix(token.INT, p.parseIntegerLiteral)
 	p.registerPrefix(token.STRING, p.parseStringLiteral)
+	p.registerPrefix(token.TEMPLATE_HEAD, p.parseTemplateLiteral)
 	p.registerPrefix(token.LBRACE, p.parseHashLiteral)
 	p.registerPrefix(token.BANG, p.parsePrefixExpression)
 	p.registerPrefix(token.MINUS, p.parsePrefixExpression)
@@ -313,6 +314,30 @@ func (p *Parser) parseIntegerLiteral() ast.Expression {
 
 func (p *Parser) parseStringLiteral() ast.Expression {
 	return &ast.StringLiteral{Token: p.curToken, Value: p.curToken.Literal}
+}
+
+func (p *Parser) parseTemplateLiteral() ast.Expression {
+	lit := &ast.TemplateLiteral{Token: p.curToken, Quasis: []string{p.curToken.Literal}}
+
+	for p.curToken.Type != token.TEMPLATE_TAIL {
+		p.nextToken()
+		expr := p.parseExpression(LOWEST)
+		if expr == nil {
+			return nil
+		}
+		lit.Expressions = append(lit.Expressions, expr)
+		if !p.expectPeek(token.RBRACE) {
+			return nil
+		}
+		p.nextToken()
+		if p.curToken.Type != token.TEMPLATE_MID && p.curToken.Type != token.TEMPLATE_TAIL {
+			p.errors = append(p.errors, fmt.Sprintf("expected template continuation, got %s", p.curToken.Type))
+			return nil
+		}
+		lit.Quasis = append(lit.Quasis, p.curToken.Literal)
+	}
+
+	return lit
 }
 
 func (p *Parser) parsePrefixExpression() ast.Expression {

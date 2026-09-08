@@ -97,3 +97,30 @@ func TestBreakContinueNullUndefined(t *testing.T) {
 		t.Fatalf("assignment left not IndexExpression: %T", assign.Left)
 	}
 }
+
+func TestTemplateLiteral(t *testing.T) {
+	input := "`hello ${x + 1}!`"
+	l := lexer.New(input)
+	p := New(l, true)
+	program := p.ParseProgram()
+	if len(p.Errors()) != 0 {
+		t.Fatalf("parser errors: %v", p.Errors())
+	}
+	if len(program.Statements) != 1 {
+		t.Fatalf("got %d statements", len(program.Statements))
+	}
+	es, ok := program.Statements[0].(*ast.ExpressionStatement)
+	if !ok {
+		t.Fatalf("not ExpressionStatement: %T", program.Statements[0])
+	}
+	tl, ok := es.Expression.(*ast.TemplateLiteral)
+	if !ok {
+		t.Fatalf("not TemplateLiteral: %T", es.Expression)
+	}
+	if len(tl.Quasis) != 2 || tl.Quasis[0] != "hello " || tl.Quasis[1] != "!" {
+		t.Fatalf("quasis=%v", tl.Quasis)
+	}
+	if len(tl.Expressions) != 1 {
+		t.Fatalf("expressions=%d", len(tl.Expressions))
+	}
+}

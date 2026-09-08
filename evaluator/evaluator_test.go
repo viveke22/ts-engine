@@ -328,6 +328,90 @@ func TestNestedIndexAndPropertyAssignment(t *testing.T) {
 	intEquals(t, arrObj, 20)
 }
 
+func TestArrayMethods(t *testing.T) {
+	pushed := testEval(`
+		let a: any = [1];
+		let n: number = a.push(2, 3);
+		n === 3 && a[2] === 3;
+	`)
+	boolEquals(t, pushed, true)
+
+	popped := testEval(`
+		let a: any = [1, 2];
+		let x: any = a.pop();
+		x === 2 && a.length === 1;
+	`)
+	boolEquals(t, popped, true)
+
+	emptyPop := testEval(`
+		let a: any = [];
+		a.pop();
+	`)
+	if emptyPop != UNDEFINED {
+		t.Fatalf("pop empty expected undefined, got %s", inspect(emptyPop))
+	}
+
+	mapped := testEval(`
+		let a: any = [1, 2, 3];
+		let b: any = a.map((x: number) => x * 2);
+		b[0] + b[1] + b[2];
+	`)
+	intEquals(t, mapped, 12)
+
+	joined := testEval(`
+		let a: any = [1, null, undefined, "x"];
+		a.join("-");
+	`)
+	stringEquals(t, joined, "1---x")
+
+	joinedDefault := testEval(`
+		let a: any = [1, 2];
+		a.join();
+	`)
+	stringEquals(t, joinedDefault, "1,2")
+
+	joinedUndef := testEval(`
+		let a: any = [1, 2];
+		a.join(undefined);
+	`)
+	stringEquals(t, joinedUndef, "1,2")
+}
+
+func TestTemplateInterpolation(t *testing.T) {
+	plain := testEval("let s: string = `hello`; s;")
+	stringEquals(t, plain, "hello")
+
+	interp := testEval("let n: number = 2; `a ${n + 1} b`;")
+	stringEquals(t, interp, "a 3 b")
+
+	multi := testEval("let x: string = `x`; let y: string = `y`; `${x}-${y}`;")
+	stringEquals(t, multi, "x-y")
+
+	nested := testEval("let n: number = 1; `a ${`b ${n}`} c`;")
+	stringEquals(t, nested, "a b 1 c")
+
+	nullish := testEval("`n=${null} u=${undefined}`;")
+	stringEquals(t, nullish, "n=null u=undefined")
+
+	braced := testEval("`val=${(() => { return 42; })()}`;")
+	stringEquals(t, braced, "val=42")
+
+	chained := testEval("`list=${[1, 2, 3].map((x: number) => x * 10).join(\"-\")}`;")
+	stringEquals(t, chained, "list=10-20-30")
+}
+
+func TestFunctionFewArguments(t *testing.T) {
+	result := testEval(`
+		function testArgs(a: any, b: any) {
+			return b;
+		}
+		testArgs(10);
+	`)
+	if result != UNDEFINED {
+		t.Fatalf("expected undefined for missing argument, got %s", inspect(result))
+	}
+}
+
 func intEquals(t *testing.T, obj object.Object, expected float64) {
 	t.Helper()
 	i, ok := obj.(*object.Integer)
@@ -347,6 +431,17 @@ func boolEquals(t *testing.T, obj object.Object, expected bool) {
 	}
 	if b.Value != expected {
 		t.Fatalf("expected %t, got %t", expected, b.Value)
+	}
+}
+
+func stringEquals(t *testing.T, obj object.Object, expected string) {
+	t.Helper()
+	s, ok := obj.(*object.String)
+	if !ok {
+		t.Fatalf("expected String %q, got %s (%T)", expected, inspect(obj), obj)
+	}
+	if s.Value != expected {
+		t.Fatalf("expected %q, got %q", expected, s.Value)
 	}
 }
 

@@ -278,6 +278,29 @@ func (sl *StringLiteral) expressionNode()      {}
 func (sl *StringLiteral) TokenLiteral() string { return sl.Token.Literal }
 func (sl *StringLiteral) String() string       { return sl.Token.Literal }
 
+type TemplateLiteral struct {
+	Token       token.Token
+	Quasis      []string
+	Expressions []Expression
+}
+
+func (tl *TemplateLiteral) expressionNode()      {}
+func (tl *TemplateLiteral) TokenLiteral() string { return tl.Token.Literal }
+func (tl *TemplateLiteral) String() string {
+	var out bytes.Buffer
+	out.WriteString("`")
+	for i, q := range tl.Quasis {
+		out.WriteString(q)
+		if i < len(tl.Expressions) {
+			out.WriteString("${")
+			out.WriteString(tl.Expressions[i].String())
+			out.WriteString("}")
+		}
+	}
+	out.WriteString("`")
+	return out.String()
+}
+
 type UpdateExpression struct {
 	Token    token.Token // ++ or --
 	Operator string

@@ -12,9 +12,12 @@ const (
 	EOF     = "EOF"
 
 	// Identifiers + literals
-	IDENT  = "IDENT"  // add, foobar, x, y, ...
-	INT    = "INT"    // 1343456
-	STRING = "STRING" // "foobar"
+	IDENT         = "IDENT"  // add, foobar, x, y, ...
+	INT           = "INT"    // 1343456
+	STRING        = "STRING" // "foobar"
+	TEMPLATE_HEAD = "TEMPLATE_HEAD"
+	TEMPLATE_MID  = "TEMPLATE_MID"
+	TEMPLATE_TAIL = "TEMPLATE_TAIL"
 
 	// Operators
 	ASSIGN      = "="

@@ -36,6 +36,9 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 	case *ast.StringLiteral:
 		return &object.String{Value: node.Value}
 
+	case *ast.TemplateLiteral:
+		return evalTemplateLiteral(node, env)
+
 	case *ast.Boolean:
 		return nativeBoolToBooleanObject(node.Value)
 
@@ -763,9 +766,7 @@ func evalDotIndexExpression(left object.Object, rightNode ast.Node) object.Objec
 		if !ok {
 			return newError("expected identifier after dot")
 		}
-		if ident.Value == "length" {
-			return &object.Integer{Value: float64(len(array.Elements))}
-		}
+		return arrayProperty(array, ident.Value)
 	}
 	return newError("property access not supported on %s", left.Type())
 }
@@ -774,6 +775,8 @@ func evalIndexExpression(left, index object.Object) object.Object {
 	switch {
 	case left.Type() == object.ARRAY_OBJ && index.Type() == object.INTEGER_OBJ:
 		return evalArrayIndexExpression(left, index)
+	case left.Type() == object.ARRAY_OBJ && index.Type() == object.STRING_OBJ:
+		return arrayProperty(left.(*object.Array), index.(*object.String).Value)
 	case left.Type() == object.HASH_OBJ:
 		return evalHashIndexExpression(left, index)
 	default:
@@ -827,6 +830,27 @@ func evalStringConcatenation(left, right object.Object) object.Object {
 	}
 
 	return &object.String{Value: leftVal + rightVal}
+}
+
+func evalTemplateLiteral(node *ast.TemplateLiteral, env *object.Environment) object.Object {
+	var b strings.Builder
+	for i, q := range node.Quasis {
+		b.WriteString(q)
+		if i < len(node.Expressions) {
+			val := Eval(node.Expressions[i], env)
+			if isError(val) {
+				return val
+			}
+			if s, ok := val.(*object.String); ok {
+				b.WriteString(s.Value)
+			} else if val == nil {
+				b.WriteString("undefined")
+			} else {
+				b.WriteString(val.Inspect())
+			}
+		}
+	}
+	return &object.String{Value: b.String()}
 }
 
 func evalIdentifier(node *ast.Identifier, env *object.Environment) object.Object {
@@ -883,7 +907,11 @@ func extendFunctionEnv(fn *object.Function, args []object.Object) *object.Enviro
 	env := object.NewEnclosedEnvironment(fn.Env)
 
 	for i, param := range fn.Parameters {
-		env.Set(param.Value, args[i])
+		if i < len(args) {
+			env.Set(param.Value, args[i])
+		} else {
+			env.Set(param.Value, UNDEFINED)
+		}
 	}
 
 	return env

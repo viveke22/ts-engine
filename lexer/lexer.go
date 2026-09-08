@@ -9,6 +9,8 @@ type Lexer struct {
 	position     int  // current position in input (points to current char)
 	readPosition int  // current reading position in input (after current char)
 	ch           byte // current char under examination
+	interpStack  []int
+	resumeQuasi  bool
 }
 
 func New(input string) *Lexer {
@@ -29,6 +31,11 @@ func (l *Lexer) readChar() {
 
 func (l *Lexer) NextToken() token.Token {
 	var tok token.Token
+
+	if l.resumeQuasi {
+		l.resumeQuasi = false
+		return l.scanTemplatePart(true)
+	}
 
 	l.skipWhitespace()
 
@@ -113,9 +120,19 @@ func (l *Lexer) NextToken() token.Token {
 	case '.':
 		tok = newToken(token.DOT, l.ch)
 	case '{':
+		if n := len(l.interpStack); n > 0 {
+			l.interpStack[n-1]++
+		}
 		tok = newToken(token.LBRACE, l.ch)
 	case '}':
 		tok = newToken(token.RBRACE, l.ch)
+		if n := len(l.interpStack); n > 0 {
+			l.interpStack[n-1]--
+			if l.interpStack[n-1] == 0 {
+				l.interpStack = l.interpStack[:n-1]
+				l.resumeQuasi = true
+			}
+		}
 	case ':':
 		tok = newToken(token.COLON, l.ch)
 	case '(':
@@ -151,8 +168,7 @@ func (l *Lexer) NextToken() token.Token {
 		tok.Type = token.STRING
 		tok.Literal = l.readString('\'')
 	case '`':
-		tok.Type = token.STRING
-		tok.Literal = l.readString('`')
+		return l.scanTemplatePart(false)
 	case 0:
 		tok.Literal = ""
 		tok.Type = token.EOF
@@ -222,6 +238,69 @@ func (l *Lexer) readNumber() string {
 		}
 	}
 	return l.input[position:l.position]
+}
+
+func (l *Lexer) scanTemplatePart(continuation bool) token.Token {
+	if !continuation {
+		l.readChar()
+	}
+
+	var out []byte
+	for {
+		if l.ch == 0 {
+			tokType := token.TokenType(token.TEMPLATE_TAIL)
+			if !continuation {
+				tokType = token.STRING
+			}
+			return token.Token{Type: tokType, Literal: string(out)}
+		}
+		if l.ch == '`' {
+			l.readChar()
+			if continuation {
+				return token.Token{Type: token.TEMPLATE_TAIL, Literal: string(out)}
+			}
+			return token.Token{Type: token.STRING, Literal: string(out)}
+		}
+		if l.ch == '$' && l.peekChar() == '{' {
+			l.readChar()
+			l.readChar()
+			l.interpStack = append(l.interpStack, 1)
+			if continuation {
+				return token.Token{Type: token.TEMPLATE_MID, Literal: string(out)}
+			}
+			return token.Token{Type: token.TEMPLATE_HEAD, Literal: string(out)}
+		}
+		if l.ch == '\\' {
+			l.readChar()
+			if l.ch == 0 {
+				break
+			}
+			switch l.ch {
+			case 'n':
+				out = append(out, '\n')
+			case 'r':
+				out = append(out, '\r')
+			case 't':
+				out = append(out, '\t')
+			case '`':
+				out = append(out, '`')
+			case '$':
+				out = append(out, '$')
+			case '\\':
+				out = append(out, '\\')
+			default:
+				out = append(out, l.ch)
+			}
+			l.readChar()
+			continue
+		}
+		out = append(out, l.ch)
+		l.readChar()
+	}
+	if continuation {
+		return token.Token{Type: token.TEMPLATE_TAIL, Literal: string(out)}
+	}
+	return token.Token{Type: token.STRING, Literal: string(out)}
 }
 
 func (l *Lexer) readString(quote byte) string {
