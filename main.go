@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -27,7 +26,7 @@ func main() {
 		return
 	}
 
-	exeBytes, err := ioutil.ReadFile(exePath)
+	exeBytes, err := os.ReadFile(exePath)
 	if err != nil {
 		fmt.Println("Error reading executable:", err)
 		return
@@ -62,7 +61,7 @@ func main() {
 
 	// Normal execution
 	filename := os.Args[1]
-	code, err := ioutil.ReadFile(filename)
+	code, err := os.ReadFile(filename)
 	if err != nil {
 		fmt.Printf("Error reading file: %s\n", err)
 		return
@@ -92,14 +91,14 @@ func runCode(code string, isStrict bool) {
 
 func buildExecutable(selfPath, sourcePath string, magicMarker []byte) {
 	// Read source
-	sourceCode, err := ioutil.ReadFile(sourcePath)
+	sourceCode, err := os.ReadFile(sourcePath)
 	if err != nil {
 		fmt.Printf("Error reading source file: %s\n", err)
 		return
 	}
 
 	// Read self
-	selfBytes, err := ioutil.ReadFile(selfPath)
+	selfBytes, err := os.ReadFile(selfPath)
 	if err != nil {
 		fmt.Printf("Error reading executable: %s\n", err)
 		return

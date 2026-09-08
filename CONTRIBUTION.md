@@ -5,7 +5,7 @@ Thank you for your interest in contributing to **ts-engine**! We welcome contrib
 ## 🚀 Getting Started
 
 ### Prerequisites
-- **Go**: Version 1.25 or higher.
+- **Go**: Version 1.27.1 or higher.
 - **Git**: For version control.
 
 ### Setup
