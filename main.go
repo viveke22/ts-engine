@@ -12,12 +12,13 @@ import (
 	"ts-engine/parser"
 )
 
-const magicHeaderStart = "#####"
-const magicHeaderEnd = "TSE_DATA#####"
+var (
+	magicHeaderStart = "#####"
+	magicHeaderEnd   = "TSE_DATA#####"
+)
 
 func main() {
-	// Construct magic string dynamically so it doesn't appear as a literal in the binary
-	magicMarker := []byte(magicHeaderStart + magicHeaderEnd)
+	magicMarker := []byte(strings.Join([]string{magicHeaderStart, magicHeaderEnd}, ""))
 
 	// 1. Check if we are running as a bundled executable
 	exePath, err := os.Executable()

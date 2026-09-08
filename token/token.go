@@ -52,43 +52,51 @@ const (
 	RBRACKET = "]"
 
 	// Keywords
-	FUNCTION = "FUNCTION"
-	LET      = "LET"
-	TRUE     = "TRUE"
-	FALSE    = "FALSE"
-	IF       = "IF"
-	ELSE     = "ELSE"
-	RETURN   = "RETURN"
-	EXPORT   = "EXPORT"
-	CONST    = "CONST"
-	VAR      = "VAR"
-	AWAIT    = "AWAIT"
-	DECLARE  = "DECLARE"
-	IMPORT   = "IMPORT"
-	FROM     = "FROM"
-	AS       = "AS"
-	FOR      = "FOR"
-	WHILE    = "WHILE"
+	FUNCTION  = "FUNCTION"
+	LET       = "LET"
+	TRUE      = "TRUE"
+	FALSE     = "FALSE"
+	IF        = "IF"
+	ELSE      = "ELSE"
+	RETURN    = "RETURN"
+	EXPORT    = "EXPORT"
+	CONST     = "CONST"
+	VAR       = "VAR"
+	AWAIT     = "AWAIT"
+	DECLARE   = "DECLARE"
+	IMPORT    = "IMPORT"
+	FROM      = "FROM"
+	AS        = "AS"
+	FOR       = "FOR"
+	WHILE     = "WHILE"
+	BREAK     = "BREAK"
+	CONTINUE  = "CONTINUE"
+	NULL      = "NULL"
+	UNDEFINED = "UNDEFINED"
 )
 
 var keywords = map[string]TokenType{
-	"function": FUNCTION,
-	"let":      LET,
-	"true":     TRUE,
-	"false":    FALSE,
-	"if":       IF,
-	"else":     ELSE,
-	"return":   RETURN,
-	"export":   EXPORT,
-	"const":    CONST,
-	"var":      VAR,
-	"await":    AWAIT,
-	"declare":  DECLARE,
-	"import":   IMPORT,
-	"from":     FROM,
-	"as":       AS,
-	"for":      FOR,
-	"while":    WHILE,
+	"function":  FUNCTION,
+	"let":       LET,
+	"true":      TRUE,
+	"false":     FALSE,
+	"if":        IF,
+	"else":      ELSE,
+	"return":    RETURN,
+	"export":    EXPORT,
+	"const":     CONST,
+	"var":       VAR,
+	"await":     AWAIT,
+	"declare":   DECLARE,
+	"import":    IMPORT,
+	"from":      FROM,
+	"as":        AS,
+	"for":       FOR,
+	"while":     WHILE,
+	"break":     BREAK,
+	"continue":  CONTINUE,
+	"null":      NULL,
+	"undefined": UNDEFINED,
 }
 
 func LookupIdent(ident string) TokenType {

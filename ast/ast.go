@@ -64,6 +64,38 @@ func (ls *LetStatement) String() string {
 	return out.String()
 }
 
+type BreakStatement struct {
+	Token token.Token
+}
+
+func (bs *BreakStatement) statementNode()       {}
+func (bs *BreakStatement) TokenLiteral() string { return bs.Token.Literal }
+func (bs *BreakStatement) String() string       { return bs.TokenLiteral() + ";" }
+
+type ContinueStatement struct {
+	Token token.Token
+}
+
+func (cs *ContinueStatement) statementNode()       {}
+func (cs *ContinueStatement) TokenLiteral() string { return cs.Token.Literal }
+func (cs *ContinueStatement) String() string       { return cs.TokenLiteral() + ";" }
+
+type NullLiteral struct {
+	Token token.Token
+}
+
+func (nl *NullLiteral) expressionNode()      {}
+func (nl *NullLiteral) TokenLiteral() string { return nl.Token.Literal }
+func (nl *NullLiteral) String() string       { return nl.Token.Literal }
+
+type UndefinedLiteral struct {
+	Token token.Token
+}
+
+func (ul *UndefinedLiteral) expressionNode()      {}
+func (ul *UndefinedLiteral) TokenLiteral() string { return ul.Token.Literal }
+func (ul *UndefinedLiteral) String() string       { return ul.Token.Literal }
+
 type ReturnStatement struct {
 	Token       token.Token // the 'return' token
 	ReturnValue Expression

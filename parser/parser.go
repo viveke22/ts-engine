@@ -39,8 +39,8 @@ var precedences = map[token.TokenType]int{
 	token.NOT_EQ_STRICT: EQUALS,
 	token.AND:           LOGICAL_AND,
 	token.OR:            LOGICAL_OR,
-	token.LPAREN:        CALL,
-	token.DOT:           CALL,
+	token.LPAREN:        INDEX,
+	token.DOT:           INDEX,
 	token.LBRACKET:      INDEX,
 	token.ASSIGN:        ASSIGN,
 	token.ARROW:         ASSIGN,
@@ -82,8 +82,8 @@ func New(l *lexer.Lexer, strict bool) *Parser {
 	p.registerPrefix(token.MINUS, p.parsePrefixExpression)
 	p.registerPrefix(token.TRUE, p.parseBoolean)
 	p.registerPrefix(token.FALSE, p.parseBoolean)
-	p.registerPrefix(token.TRUE, p.parseBoolean)
-	p.registerPrefix(token.FALSE, p.parseBoolean)
+	p.registerPrefix(token.NULL, p.parseNullLiteral)
+	p.registerPrefix(token.UNDEFINED, p.parseUndefinedLiteral)
 	p.registerPrefix(token.LPAREN, p.parseGroupedExpression)
 	p.registerPrefix(token.IF, p.parseIfExpression)
 	p.registerPrefix(token.FUNCTION, p.parseFunctionLiteral)
@@ -157,6 +157,10 @@ func (p *Parser) parseStatement() ast.Statement {
 		return p.parseLetStatement()
 	case token.RETURN:
 		return p.parseReturnStatement()
+	case token.BREAK:
+		return p.parseBreakStatement()
+	case token.CONTINUE:
+		return p.parseContinueStatement()
 	case token.EXPORT:
 		return p.parseExportStatement()
 	case token.DECLARE:
@@ -170,6 +174,22 @@ func (p *Parser) parseStatement() ast.Statement {
 	default:
 		return p.parseExpressionStatement()
 	}
+}
+
+func (p *Parser) parseBreakStatement() *ast.BreakStatement {
+	stmt := &ast.BreakStatement{Token: p.curToken}
+	if p.peekTokenIs(token.SEMICOLON) {
+		p.nextToken()
+	}
+	return stmt
+}
+
+func (p *Parser) parseContinueStatement() *ast.ContinueStatement {
+	stmt := &ast.ContinueStatement{Token: p.curToken}
+	if p.peekTokenIs(token.SEMICOLON) {
+		p.nextToken()
+	}
+	return stmt
 }
 
 func (p *Parser) parseExportStatement() *ast.ExportStatement {
@@ -333,6 +353,14 @@ func (p *Parser) parseAssignmentExpression(left ast.Expression) ast.Expression {
 
 func (p *Parser) parseBoolean() ast.Expression {
 	return &ast.Boolean{Token: p.curToken, Value: p.curTokenIs(token.TRUE)}
+}
+
+func (p *Parser) parseNullLiteral() ast.Expression {
+	return &ast.NullLiteral{Token: p.curToken}
+}
+
+func (p *Parser) parseUndefinedLiteral() ast.Expression {
+	return &ast.UndefinedLiteral{Token: p.curToken}
 }
 
 func (p *Parser) parseGroupedExpression() ast.Expression {

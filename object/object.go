@@ -14,7 +14,10 @@ const (
 	BOOLEAN_OBJ      = "BOOLEAN"
 	STRING_OBJ       = "STRING"
 	NULL_OBJ         = "NULL"
+	UNDEFINED_OBJ    = "UNDEFINED"
 	RETURN_VALUE_OBJ = "RETURN_VALUE"
+	BREAK_OBJ        = "BREAK"
+	CONTINUE_OBJ     = "CONTINUE"
 	ERROR_OBJ        = "ERROR"
 	FUNCTION_OBJ     = "FUNCTION"
 	BUILTIN_OBJ      = "BUILTIN"
@@ -53,9 +56,24 @@ type Null struct{}
 func (n *Null) Type() ObjectType { return NULL_OBJ }
 func (n *Null) Inspect() string  { return "null" }
 
+type Undefined struct{}
+
+func (u *Undefined) Type() ObjectType { return UNDEFINED_OBJ }
+func (u *Undefined) Inspect() string  { return "undefined" }
+
 type ReturnValue struct {
 	Value Object
 }
+
+type Break struct{}
+
+func (b *Break) Type() ObjectType { return BREAK_OBJ }
+func (b *Break) Inspect() string  { return "break" }
+
+type Continue struct{}
+
+func (c *Continue) Type() ObjectType { return CONTINUE_OBJ }
+func (c *Continue) Inspect() string  { return "continue" }
 
 func (rv *ReturnValue) Type() ObjectType { return RETURN_VALUE_OBJ }
 func (rv *ReturnValue) Inspect() string  { return rv.Value.Inspect() }
@@ -68,17 +86,19 @@ func (e *Error) Type() ObjectType { return ERROR_OBJ }
 func (e *Error) Inspect() string  { return "ERROR: " + e.Message }
 
 type Environment struct {
-	store     map[string]Object
-	typeStore map[string]string
-	outer     *Environment
-	Exports   map[string]Object // Exported variables
+	store      map[string]Object
+	typeStore  map[string]string
+	constStore map[string]bool
+	outer      *Environment
+	Exports    map[string]Object // Exported variables
 }
 
 func NewEnvironment() *Environment {
 	s := make(map[string]Object)
 	t := make(map[string]string)
+	c := make(map[string]bool)
 	e := make(map[string]Object)
-	return &Environment{store: s, typeStore: t, outer: nil, Exports: e}
+	return &Environment{store: s, typeStore: t, constStore: c, outer: nil, Exports: e}
 }
 
 func NewEnclosedEnvironment(outer *Environment) *Environment {
@@ -103,6 +123,24 @@ func (e *Environment) GetCurrent(name string) (Object, bool) {
 func (e *Environment) Set(name string, val Object) Object {
 	e.store[name] = val
 	return val
+}
+
+func (e *Environment) MarkConst(name string) {
+	e.constStore[name] = true
+}
+
+func (e *Environment) IsConst(name string) bool {
+	if _, ok := e.store[name]; ok {
+		return e.constStore[name]
+	}
+	if e.outer != nil {
+		return e.outer.IsConst(name)
+	}
+	return false
+}
+
+func (e *Environment) IsConstCurrent(name string) bool {
+	return e.constStore[name]
 }
 
 func (e *Environment) SetType(name string, typeName string) {

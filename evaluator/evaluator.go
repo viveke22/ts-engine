@@ -14,9 +14,12 @@ import (
 )
 
 var (
-	NULL  = &object.Null{}
-	TRUE  = &object.Boolean{Value: true}
-	FALSE = &object.Boolean{Value: false}
+	NULL      = &object.Null{}
+	UNDEFINED = &object.Undefined{}
+	TRUE      = &object.Boolean{Value: true}
+	FALSE     = &object.Boolean{Value: false}
+	BREAK     = &object.Break{}
+	CONTINUE  = &object.Continue{}
 )
 
 func Eval(node ast.Node, env *object.Environment) object.Object {
@@ -35,6 +38,18 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 
 	case *ast.Boolean:
 		return nativeBoolToBooleanObject(node.Value)
+
+	case *ast.NullLiteral:
+		return NULL
+
+	case *ast.UndefinedLiteral:
+		return UNDEFINED
+
+	case *ast.BreakStatement:
+		return BREAK
+
+	case *ast.ContinueStatement:
+		return CONTINUE
 
 	case *ast.PrefixExpression:
 		right := Eval(node.Right, env)
@@ -77,17 +92,18 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 			}
 
 			bodyEnv := object.NewEnclosedEnvironment(env)
-			err := Eval(node.Body, bodyEnv)
-
-			if err != nil {
-				rt := err.Type()
-				if rt == object.RETURN_VALUE_OBJ {
-					return err
+			result := Eval(node.Body, bodyEnv)
+			if result != nil {
+				rt := result.Type()
+				if rt == object.RETURN_VALUE_OBJ || rt == object.ERROR_OBJ {
+					return result
 				}
-				if rt == object.ERROR_OBJ {
-					return err
+				if rt == object.BREAK_OBJ {
+					return NULL
 				}
-				// Break/Continue handling to do
+				if rt == object.CONTINUE_OBJ {
+					continue
+				}
 			}
 		}
 		return NULL
@@ -117,22 +133,31 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 				}
 			}
 
-			err := Eval(node.Body, loopEnv)
-			if err != nil {
-				rt := err.Type()
-				if rt == object.RETURN_VALUE_OBJ {
-					return err
+			bodyEnv := object.NewEnclosedEnvironment(loopEnv)
+			result := Eval(node.Body, bodyEnv)
+			if result != nil {
+				rt := result.Type()
+				if rt == object.RETURN_VALUE_OBJ || rt == object.ERROR_OBJ {
+					return result
 				}
-				if rt == object.ERROR_OBJ {
-					return err
+				if rt == object.BREAK_OBJ {
+					return NULL
 				}
-				// TODO: break/continue statement support
+				if rt == object.CONTINUE_OBJ {
+					if node.Update != nil {
+						upd := Eval(node.Update, loopEnv)
+						if isError(upd) {
+							return upd
+						}
+					}
+					continue
+				}
 			}
 
 			if node.Update != nil {
-				err := Eval(node.Update, loopEnv)
-				if isError(err) {
-					return err
+				upd := Eval(node.Update, loopEnv)
+				if isError(upd) {
+					return upd
 				}
 			}
 		}
@@ -142,6 +167,9 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		return evalIfExpression(node, env)
 
 	case *ast.ReturnStatement:
+		if node.ReturnValue == nil {
+			return &object.ReturnValue{Value: UNDEFINED}
+		}
 		val := Eval(node.ReturnValue, env)
 		if isError(val) {
 			return val
@@ -174,6 +202,9 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		return evalImportStatement(node, env)
 
 	case *ast.LetStatement:
+		if node.Token.Type == token.CONST && node.Value == nil {
+			return newError("missing initializer in const declaration")
+		}
 		var val object.Object
 		if node.Value != nil {
 			val = Eval(node.Value, env)
@@ -181,11 +212,13 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 				return val
 			}
 		} else {
-			val = NULL
+			val = UNDEFINED
 		}
 
 		if node.Token.Type == token.VAR {
-			// VAR allows redeclaration
+			if env.IsConstCurrent(node.Name.Value) {
+				return newError("cannot redeclare const '%s'", node.Name.Value)
+			}
 		} else {
 			if _, ok := env.GetCurrent(node.Name.Value); ok {
 				return newError("cannot redeclare block-scoped variable '%s'", node.Name.Value)
@@ -193,20 +226,21 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		}
 
 		if node.Name.Type != "" {
-			// Abstract this check?
-			if val != NULL {
+			if node.Value != nil {
 				if err := checkType(val, node.Name.Type); err != nil {
 					return err
 				}
 			}
 			env.SetType(node.Name.Value, node.Name.Type)
-		} else if val != NULL {
-			// Infer type from value
+		} else if node.Value != nil && val != NULL && val != UNDEFINED {
 			inferred := inferType(val)
 			env.SetType(node.Name.Value, inferred)
 		}
 
 		env.Set(node.Name.Value, val)
+		if node.Token.Type == token.CONST {
+			env.MarkConst(node.Name.Value)
+		}
 
 	case *ast.Identifier:
 		return evalIdentifier(node, env)
@@ -259,28 +293,7 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		return &object.Array{Elements: elements}
 
 	case *ast.AssignmentExpression:
-		left := node.Left
-		val := Eval(node.Value, env)
-		if isError(val) {
-			return val
-		}
-
-		if ident, ok := left.(*ast.Identifier); ok {
-			if _, ok := env.Get(ident.Value); !ok {
-				return newError("identifier not found: %s", ident.Value)
-			}
-
-			// Check established type (declared or inferred)
-			if declaredType, ok := env.GetType(ident.Value); ok {
-				if err := checkType(val, declaredType); err != nil {
-					return err
-				}
-			}
-
-			env.Update(ident.Value, val)
-			return val
-		}
-		return newError("assignment to non-identifier not supported yet")
+		return evalAssignmentExpression(node, env)
 
 	case *ast.IndexExpression:
 		left := Eval(node.Left, env)
@@ -308,6 +321,10 @@ func evalProgram(program *ast.Program, env *object.Environment) object.Object {
 			return result.Value
 		case *object.Error:
 			return result
+		case *object.Break:
+			return newError("break outside of loop")
+		case *object.Continue:
+			return newError("continue outside of loop")
 		}
 	}
 
@@ -322,7 +339,8 @@ func evalBlockStatement(block *ast.BlockStatement, env *object.Environment) obje
 
 		if result != nil {
 			rt := result.Type()
-			if rt == object.RETURN_VALUE_OBJ || rt == object.ERROR_OBJ {
+			if rt == object.RETURN_VALUE_OBJ || rt == object.ERROR_OBJ ||
+				rt == object.BREAK_OBJ || rt == object.CONTINUE_OBJ {
 				return result
 			}
 		}
@@ -336,6 +354,108 @@ func nativeBoolToBooleanObject(input bool) *object.Boolean {
 		return TRUE
 	}
 	return FALSE
+}
+
+func evalAssignmentExpression(node *ast.AssignmentExpression, env *object.Environment) object.Object {
+	val := Eval(node.Value, env)
+	if isError(val) {
+		return val
+	}
+
+	switch left := node.Left.(type) {
+	case *ast.Identifier:
+		if _, ok := env.Get(left.Value); !ok {
+			return newError("identifier not found: %s", left.Value)
+		}
+		if env.IsConst(left.Value) {
+			return newError("cannot assign to const '%s'", left.Value)
+		}
+		if declaredType, ok := env.GetType(left.Value); ok {
+			if err := checkType(val, declaredType); err != nil {
+				return err
+			}
+		}
+		env.Update(left.Value, val)
+		return val
+
+	case *ast.InfixExpression:
+		if left.Operator != "." {
+			return newError("assignment to non-identifier not supported")
+		}
+		ident, ok := left.Right.(*ast.Identifier)
+		if !ok {
+			return newError("expected identifier after dot, got %T", left.Right)
+		}
+		target := Eval(left.Left, env)
+		if isError(target) {
+			return target
+		}
+		hash, ok := target.(*object.Hash)
+		if !ok {
+			return newError("cannot assign property on %s", target.Type())
+		}
+		if hash.Pairs == nil {
+			hash.Pairs = make(map[string]object.Object)
+		}
+		hash.Pairs[ident.Value] = val
+		return val
+
+	case *ast.IndexExpression:
+		target := Eval(left.Left, env)
+		if isError(target) {
+			return target
+		}
+		index := Eval(left.Index, env)
+		if isError(index) {
+			return index
+		}
+		return assignIndex(target, index, val)
+	}
+
+	return newError("assignment to non-identifier not supported")
+}
+
+func assignIndex(target, index, val object.Object) object.Object {
+	switch t := target.(type) {
+	case *object.Array:
+		idxObj, ok := index.(*object.Integer)
+		if !ok {
+			return newError("array index must be number, got %s", index.Type())
+		}
+		idx := int(idxObj.Value)
+		if idx < 0 {
+			return newError("negative array index: %d", idx)
+		}
+		if idx < len(t.Elements) {
+			t.Elements[idx] = val
+			return val
+		}
+		if idx == len(t.Elements) {
+			t.Elements = append(t.Elements, val)
+			return val
+		}
+		for len(t.Elements) < idx {
+			t.Elements = append(t.Elements, UNDEFINED)
+		}
+		t.Elements = append(t.Elements, val)
+		return val
+
+	case *object.Hash:
+		var key string
+		if s, ok := index.(*object.String); ok {
+			key = s.Value
+		} else {
+			key = index.Inspect()
+		}
+		if t.Pairs == nil {
+			t.Pairs = make(map[string]object.Object)
+		}
+		t.Pairs[key] = val
+		return val
+
+	default:
+		return newError("index assignment not supported on %s", target.Type())
+	}
 }
 
 func evalPrefixExpression(operator string, right object.Object) object.Object {
@@ -361,6 +481,10 @@ func evalUpdateExpression(node *ast.UpdateExpression, env *object.Environment) o
 	val, ok := env.Get(ident.Value)
 	if !ok {
 		return newError("identifier not found: %s", ident.Value)
+	}
+
+	if env.IsConst(ident.Value) {
+		return newError("cannot assign to const '%s'", ident.Value)
 	}
 
 	if val.Type() != object.INTEGER_OBJ {
@@ -395,14 +519,21 @@ func evalInfixExpression(operator string, left, right object.Object) object.Obje
 		return evalStringInfixExpression(operator, left, right)
 	case operator == "+" && (left.Type() == object.STRING_OBJ || right.Type() == object.STRING_OBJ):
 		return evalStringConcatenation(left, right)
+	case isNullish(left) || isNullish(right):
+		same := left.Type() == right.Type()
+		switch operator {
+		case "==", "===":
+			return nativeBoolToBooleanObject(same)
+		case "!=", "!==":
+			return nativeBoolToBooleanObject(!same)
+		}
+		return newError("unknown operator: %s %s %s", left.Type(), operator, right.Type())
 	case operator == "==":
 		return nativeBoolToBooleanObject(left == right)
 	case operator == "!=":
 		return nativeBoolToBooleanObject(left != right)
 	case operator == "===":
 		return nativeBoolToBooleanObject(left == right && left.Type() == right.Type())
-	case operator == "!==":
-		return nativeBoolToBooleanObject(left != right || left.Type() != right.Type())
 	case operator == "!==":
 		return nativeBoolToBooleanObject(left != right || left.Type() != right.Type())
 	case operator == "&&":
@@ -414,6 +545,10 @@ func evalInfixExpression(operator string, left, right object.Object) object.Obje
 	default:
 		return newError("unknown operator: %s %s %s", left.Type(), operator, right.Type())
 	}
+}
+
+func isNullish(obj object.Object) bool {
+	return obj != nil && (obj == NULL || obj == UNDEFINED || obj.Type() == object.NULL_OBJ || obj.Type() == object.UNDEFINED_OBJ)
 }
 
 func evalIfExpression(ie *ast.IfExpression, env *object.Environment) object.Object {
@@ -435,6 +570,8 @@ func isTruthy(obj object.Object) bool {
 	switch obj {
 	case NULL:
 		return false
+	case UNDEFINED:
+		return false
 	case TRUE:
 		return true
 	case FALSE:
@@ -451,6 +588,8 @@ func evalBangOperatorExpression(right object.Object) object.Object {
 	case FALSE:
 		return TRUE
 	case NULL:
+		return TRUE
+	case UNDEFINED:
 		return TRUE
 	default:
 		return FALSE
@@ -606,7 +745,7 @@ func evalDotIndexExpression(left object.Object, rightNode ast.Node) object.Objec
 		key := ident.Value
 		val, ok := hash.Pairs[key]
 		if !ok {
-			return NULL
+			return UNDEFINED
 		}
 		return val
 	} else if left.Type() == object.STRING_OBJ {
@@ -648,7 +787,7 @@ func evalArrayIndexExpression(array, index object.Object) object.Object {
 	max := len(arrayObject.Elements) - 1
 
 	if idx < 0 || idx > max {
-		return NULL
+		return UNDEFINED
 	}
 
 	return arrayObject.Elements[idx]
@@ -666,7 +805,7 @@ func evalHashIndexExpression(hash, index object.Object) object.Object {
 
 	val, ok := hashObject.Pairs[key]
 	if !ok {
-		return NULL
+		return UNDEFINED
 	}
 
 	return val
@@ -721,6 +860,15 @@ func applyFunction(fn object.Object, args []object.Object) object.Object {
 	case *object.Function:
 		extendedEnv := extendFunctionEnv(fn, args)
 		evaluated := evalBlockStatement(fn.Body, extendedEnv)
+		if evaluated != nil {
+			rt := evaluated.Type()
+			if rt == object.BREAK_OBJ {
+				return newError("break outside of loop")
+			}
+			if rt == object.CONTINUE_OBJ {
+				return newError("continue outside of loop")
+			}
+		}
 		return unwrapReturnValue(evaluated)
 
 	case *object.Builtin:
@@ -742,7 +890,13 @@ func extendFunctionEnv(fn *object.Function, args []object.Object) *object.Enviro
 }
 
 func unwrapReturnValue(obj object.Object) object.Object {
+	if obj == nil {
+		return UNDEFINED
+	}
 	if returnValue, ok := obj.(*object.ReturnValue); ok {
+		if returnValue.Value == nil {
+			return UNDEFINED
+		}
 		return returnValue.Value
 	}
 	return obj
@@ -769,7 +923,11 @@ func init() {
 					Fn: func(args ...object.Object) object.Object {
 						var out []string
 						for _, arg := range args {
-							out = append(out, arg.Inspect())
+							if arg == nil {
+								out = append(out, "undefined")
+							} else {
+								out = append(out, arg.Inspect())
+							}
 						}
 						fmt.Println(strings.Join(out, " "))
 						return NULL
@@ -893,6 +1051,14 @@ func checkType(obj object.Object, typeName string) *object.Error {
 		if obj.Type() != object.BOOLEAN_OBJ {
 			return newError("type mismatch: expected boolean, got %s", obj.Type())
 		}
+	case "null":
+		if obj.Type() != object.NULL_OBJ {
+			return newError("type mismatch: expected null, got %s", obj.Type())
+		}
+	case "undefined":
+		if obj.Type() != object.UNDEFINED_OBJ {
+			return newError("type mismatch: expected undefined, got %s", obj.Type())
+		}
 	case "never":
 		return newError("type mismatch: cannot assign to never")
 	default:
@@ -912,6 +1078,10 @@ func inferType(obj object.Object) string {
 		return "boolean"
 	case object.STRING_OBJ:
 		return "string"
+	case object.NULL_OBJ:
+		return "null"
+	case object.UNDEFINED_OBJ:
+		return "undefined"
 	default:
 		return "any"
 	}
