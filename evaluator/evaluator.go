@@ -186,6 +186,10 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 			if obj, ok := env.Get(letStmt.Name.Value); ok {
 				env.Exports[letStmt.Name.Value] = obj
 			}
+		} else if classStmt, ok := node.Statement.(*ast.ClassStatement); ok {
+			if obj, ok := env.Get(classStmt.Name.Value); ok {
+				env.Exports[classStmt.Name.Value] = obj
+			}
 		} else if exprStmt, ok := node.Statement.(*ast.ExpressionStatement); ok {
 			if fnLit, ok := exprStmt.Expression.(*ast.FunctionLiteral); ok {
 				if fnLit.Name != "" {
@@ -200,6 +204,18 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 
 	case *ast.ImportStatement:
 		return evalImportStatement(node, env)
+
+	case *ast.ThisLiteral:
+		if env.This != nil {
+			return env.This
+		}
+		return UNDEFINED
+
+	case *ast.ClassStatement:
+		return evalClassStatement(node, env)
+
+	case *ast.NewExpression:
+		return evalNewExpression(node, env)
 
 	case *ast.LetStatement:
 		if node.Token.Type == token.CONST && node.Value == nil {
@@ -721,21 +737,13 @@ func evalStringInfixExpression(operator string, left, right object.Object) objec
 }
 
 func evalDotIndexExpression(left object.Object, rightNode ast.Node) object.Object {
+	ident, ok := rightNode.(*ast.Identifier)
+	if !ok {
+		return newError("expected identifier after dot, got %T", rightNode)
+	}
+
 	if left.Type() == object.HASH_OBJ {
-		hash := left.(*object.Hash)
-
-		// Right node should be an identifier for dot notation
-		ident, ok := rightNode.(*ast.Identifier)
-		if !ok {
-			return newError("expected identifier after dot, got %T", rightNode)
-		}
-
-		key := ident.Value
-		val, ok := hash.Pairs[key]
-		if !ok {
-			return UNDEFINED
-		}
-		return val
+		return instanceProperty(left.(*object.Hash), ident.Value)
 	} else if left.Type() == object.STRING_OBJ {
 		str := left.(*object.String)
 		ident, ok := rightNode.(*ast.Identifier)
@@ -792,11 +800,10 @@ func evalHashIndexExpression(hash, index object.Object) object.Object {
 	}
 
 	val, ok := hashObject.Pairs[key]
-	if !ok {
-		return UNDEFINED
+	if ok {
+		return val
 	}
-
-	return val
+	return instanceProperty(hashObject, key)
 }
 
 func evalStringConcatenation(left, right object.Object) object.Object {
@@ -867,18 +874,13 @@ func evalExpressions(exps []ast.Expression, env *object.Environment) []object.Ob
 func applyFunction(fn object.Object, args []object.Object, env *object.Environment) object.Object {
 	switch fn := fn.(type) {
 	case *object.Function:
-		extendedEnv := extendFunctionEnv(fn, args)
-		evaluated := evalBlockStatement(fn.Body, extendedEnv)
-		if evaluated != nil {
-			rt := evaluated.Type()
-			if rt == object.BREAK_OBJ {
-				return newError("break outside of loop")
-			}
-			if rt == object.CONTINUE_OBJ {
-				return newError("continue outside of loop")
-			}
-		}
-		return unwrapReturnValue(evaluated)
+		return applyUserFunction(fn, args, nil)
+
+	case *object.BoundMethod:
+		return applyUserFunction(fn.Fn, args, fn.This)
+
+	case *object.Class:
+		return newError("class constructors must be invoked with 'new'")
 
 	case *object.Builtin:
 		if fn == requireBuiltin {
@@ -889,6 +891,121 @@ func applyFunction(fn object.Object, args []object.Object, env *object.Environme
 	default:
 		return newError("not a function: %s", fn.Type())
 	}
+}
+
+func applyUserFunction(fn *object.Function, args []object.Object, this object.Object) object.Object {
+	extendedEnv := extendFunctionEnv(fn, args)
+	if this != nil {
+		extendedEnv.This = this
+	}
+	evaluated := evalBlockStatement(fn.Body, extendedEnv)
+	if evaluated != nil {
+		rt := evaluated.Type()
+		if rt == object.BREAK_OBJ {
+			return newError("break outside of loop")
+		}
+		if rt == object.CONTINUE_OBJ {
+			return newError("continue outside of loop")
+		}
+	}
+	return unwrapReturnValue(evaluated)
+}
+
+func evalClassStatement(node *ast.ClassStatement, env *object.Environment) object.Object {
+	if node.Name == nil {
+		return newError("class declaration requires a name")
+	}
+	if _, ok := env.GetCurrent(node.Name.Value); ok {
+		return newError("cannot redeclare block-scoped variable '%s'", node.Name.Value)
+	}
+
+	class := &object.Class{
+		Name:    node.Name.Value,
+		Methods: make(map[string]*object.Function),
+		Fields:  node.Fields,
+		Env:     env,
+	}
+
+	if node.Constructor != nil {
+		class.Constructor = &object.Function{
+			Parameters: node.Constructor.Parameters,
+			Body:       node.Constructor.Body,
+			Env:        env,
+		}
+	}
+
+	for _, m := range node.Methods {
+		class.Methods[m.Name] = &object.Function{
+			Parameters: m.Parameters,
+			Body:       m.Body,
+			Env:        env,
+		}
+	}
+
+	env.Set(node.Name.Value, class)
+	return class
+}
+
+func evalNewExpression(node *ast.NewExpression, env *object.Environment) object.Object {
+	ctor := Eval(node.Constructor, env)
+	if isError(ctor) {
+		return ctor
+	}
+	class, ok := ctor.(*object.Class)
+	if !ok {
+		return newError("not a constructor: %s", ctor.Type())
+	}
+
+	args := evalExpressions(node.Arguments, env)
+	if len(args) == 1 && isError(args[0]) {
+		return args[0]
+	}
+
+	instance := &object.Hash{
+		Pairs: make(map[string]object.Object),
+		Class: class,
+	}
+
+	initEnv := object.NewEnclosedEnvironment(class.Env)
+	initEnv.This = instance
+	for _, field := range class.Fields {
+		if field.Value == nil {
+			continue
+		}
+		val := Eval(field.Value, initEnv)
+		if isError(val) {
+			return val
+		}
+		if field.Name.Type != "" {
+			if err := checkType(val, field.Name.Type); err != nil {
+				return err
+			}
+		}
+		instance.Pairs[field.Name.Value] = val
+	}
+
+	if class.Constructor != nil {
+		result := applyUserFunction(class.Constructor, args, instance)
+		if isError(result) {
+			return result
+		}
+	} else if len(args) > 0 {
+		return newError("class %s has no constructor", class.Name)
+	}
+
+	return instance
+}
+
+func instanceProperty(hash *object.Hash, key string) object.Object {
+	if val, ok := hash.Pairs[key]; ok {
+		return val
+	}
+	if hash.Class != nil {
+		if m, ok := hash.Class.Methods[key]; ok {
+			return &object.BoundMethod{Fn: m, This: hash}
+		}
+	}
+	return UNDEFINED
 }
 
 func extendFunctionEnv(fn *object.Function, args []object.Object) *object.Environment {
@@ -1048,6 +1165,11 @@ func inferType(obj object.Object) string {
 		return "null"
 	case object.UNDEFINED_OBJ:
 		return "undefined"
+	case object.HASH_OBJ:
+		if h, ok := obj.(*object.Hash); ok && h.Class != nil {
+			return h.Class.Name
+		}
+		return "any"
 	default:
 		return "any"
 	}

@@ -563,6 +563,83 @@ func (afl *ArrowFunctionLiteral) String() string {
 	return out.String()
 }
 
+type ClassStatement struct {
+	Token       token.Token
+	Name        *Identifier
+	Fields      []*ClassField
+	Constructor *FunctionLiteral
+	Methods     []*FunctionLiteral
+}
+
+func (cs *ClassStatement) statementNode()       {}
+func (cs *ClassStatement) TokenLiteral() string { return cs.Token.Literal }
+func (cs *ClassStatement) String() string {
+	var out bytes.Buffer
+	out.WriteString("class ")
+	if cs.Name != nil {
+		out.WriteString(cs.Name.String())
+	}
+	out.WriteString(" {")
+	for _, f := range cs.Fields {
+		out.WriteString(f.String())
+	}
+	if cs.Constructor != nil {
+		out.WriteString(cs.Constructor.String())
+	}
+	for _, m := range cs.Methods {
+		out.WriteString(m.String())
+	}
+	out.WriteString("}")
+	return out.String()
+}
+
+type ClassField struct {
+	Token token.Token
+	Name  *Identifier
+	Value Expression
+}
+
+func (cf *ClassField) String() string {
+	var out bytes.Buffer
+	out.WriteString(cf.Name.String())
+	if cf.Value != nil {
+		out.WriteString(" = ")
+		out.WriteString(cf.Value.String())
+	}
+	out.WriteString(";")
+	return out.String()
+}
+
+type NewExpression struct {
+	Token       token.Token
+	Constructor Expression
+	Arguments   []Expression
+}
+
+func (ne *NewExpression) expressionNode()      {}
+func (ne *NewExpression) TokenLiteral() string { return ne.Token.Literal }
+func (ne *NewExpression) String() string {
+	var out bytes.Buffer
+	args := []string{}
+	for _, a := range ne.Arguments {
+		args = append(args, a.String())
+	}
+	out.WriteString("new ")
+	out.WriteString(ne.Constructor.String())
+	out.WriteString("(")
+	out.WriteString(strings.Join(args, ", "))
+	out.WriteString(")")
+	return out.String()
+}
+
+type ThisLiteral struct {
+	Token token.Token
+}
+
+func (tl *ThisLiteral) expressionNode()      {}
+func (tl *ThisLiteral) TokenLiteral() string { return tl.Token.Literal }
+func (tl *ThisLiteral) String() string       { return "this" }
+
 type AsExpression struct {
 	Token token.Token // The 'as' token
 	Left  Expression

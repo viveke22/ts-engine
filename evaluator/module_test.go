@@ -246,6 +246,28 @@ func TestModuleParserError(t *testing.T) {
 	isErrorContaining(t, evalFile(t, entry), "parser errors in")
 }
 
+func TestExportClass(t *testing.T) {
+	resetModules()
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "point.ts"), `
+		export class Point {
+			constructor(x: number) {
+				this.x = x;
+			}
+			n() {
+				return this.x;
+			}
+		}
+	`)
+	entry := filepath.Join(root, "main.ts")
+	writeFile(t, entry, `
+		import { Point } from "./point";
+		new Point(8).n();
+	`)
+
+	intEquals(t, evalFile(t, entry), 8)
+}
+
 func evalFile(t *testing.T, path string) object.Object {
 	t.Helper()
 	code, err := os.ReadFile(path)

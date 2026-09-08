@@ -76,6 +76,9 @@ const (
 	CONTINUE  = "CONTINUE"
 	NULL      = "NULL"
 	UNDEFINED = "UNDEFINED"
+	CLASS     = "CLASS"
+	NEW       = "NEW"
+	THIS      = "THIS"
 )
 
 var keywords = map[string]TokenType{
@@ -100,6 +103,9 @@ var keywords = map[string]TokenType{
 	"continue":  CONTINUE,
 	"null":      NULL,
 	"undefined": UNDEFINED,
+	"class":     CLASS,
+	"new":       NEW,
+	"this":      THIS,
 }
 
 func LookupIdent(ident string) TokenType {

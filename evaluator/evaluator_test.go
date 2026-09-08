@@ -412,6 +412,85 @@ func TestFunctionFewArguments(t *testing.T) {
 	}
 }
 
+func TestClasses(t *testing.T) {
+	constructed := testEval(`
+		class Point {
+			x: number;
+			y: number;
+			constructor(x: number, y: number) {
+				this.x = x;
+				this.y = y;
+			}
+			sum() {
+				return this.x + this.y;
+			}
+		}
+		let p: Point = new Point(2, 3);
+		p.sum();
+	`)
+	intEquals(t, constructed, 5)
+
+	fields := testEval(`
+		class Counter {
+			n = 1;
+			inc() {
+				this.n = this.n + 1;
+				return this.n;
+			}
+		}
+		let c: Counter = new Counter();
+		c.inc();
+		c.inc();
+	`)
+	intEquals(t, fields, 3)
+
+	extracted := testEval(`
+		class Box {
+			v: number;
+			constructor(v: number) {
+				this.v = v;
+			}
+			get() {
+				return this.v;
+			}
+		}
+		let b: Box = new Box(9);
+		let g: any = b.get;
+		g();
+	`)
+	intEquals(t, extracted, 9)
+
+	bareThis := testEval(`this`)
+	if bareThis != UNDEFINED {
+		t.Fatalf("expected undefined this, got %s", inspect(bareThis))
+	}
+
+	noNew := testEval(`
+		class A {}
+		A();
+	`)
+	isErrorContaining(t, noNew, "new")
+
+	emptyNew := testEval(`
+		class A {}
+		let a: A = new A();
+		a.missing === undefined;
+	`)
+	boolEquals(t, emptyNew, true)
+
+	newDot := testEval(`
+		let ns: any = {};
+		class Inner {
+			constructor() {
+				this.ok = 1;
+			}
+		}
+		ns.Inner = Inner;
+		new ns.Inner().ok;
+	`)
+	intEquals(t, newDot, 1)
+}
+
 func intEquals(t *testing.T, obj object.Object, expected float64) {
 	t.Helper()
 	i, ok := obj.(*object.Integer)

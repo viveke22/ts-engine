@@ -39,7 +39,7 @@ var precedences = map[token.TokenType]int{
 	token.NOT_EQ_STRICT: EQUALS,
 	token.AND:           LOGICAL_AND,
 	token.OR:            LOGICAL_OR,
-	token.LPAREN:        INDEX,
+	token.LPAREN:        CALL,
 	token.DOT:           INDEX,
 	token.LBRACKET:      INDEX,
 	token.ASSIGN:        ASSIGN,
@@ -90,6 +90,8 @@ func New(l *lexer.Lexer, strict bool) *Parser {
 	p.registerPrefix(token.FUNCTION, p.parseFunctionLiteral)
 	p.registerPrefix(token.AWAIT, p.parsePrefixExpression)
 	p.registerPrefix(token.LBRACKET, p.parseArrayLiteral)
+	p.registerPrefix(token.NEW, p.parseNewExpression)
+	p.registerPrefix(token.THIS, p.parseThisLiteral)
 
 	p.infixParseFns = make(map[token.TokenType]infixParseFn)
 	p.registerInfix(token.PLUS, p.parseInfixExpression)
@@ -172,6 +174,8 @@ func (p *Parser) parseStatement() ast.Statement {
 		return p.parseForStatement()
 	case token.WHILE:
 		return p.parseWhileStatement()
+	case token.CLASS:
+		return p.parseClassStatement()
 	default:
 		return p.parseExpressionStatement()
 	}
@@ -542,6 +546,84 @@ func (p *Parser) parseCallExpression(function ast.Expression) ast.Expression {
 	exp := &ast.CallExpression{Token: p.curToken, Function: function}
 	exp.Arguments = p.parseCallArguments()
 	return exp
+}
+
+func (p *Parser) parseThisLiteral() ast.Expression {
+	return &ast.ThisLiteral{Token: p.curToken}
+}
+
+func (p *Parser) parseNewExpression() ast.Expression {
+	exp := &ast.NewExpression{Token: p.curToken}
+	p.nextToken()
+	exp.Constructor = p.parseExpression(CALL)
+	if p.peekTokenIs(token.LPAREN) {
+		p.nextToken()
+		exp.Arguments = p.parseCallArguments()
+	}
+	return exp
+}
+
+func (p *Parser) parseClassStatement() *ast.ClassStatement {
+	stmt := &ast.ClassStatement{Token: p.curToken}
+	if !p.expectPeek(token.IDENT) {
+		return nil
+	}
+	stmt.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+	if !p.expectPeek(token.LBRACE) {
+		return nil
+	}
+	p.nextToken()
+	for !p.curTokenIs(token.RBRACE) && !p.curTokenIs(token.EOF) {
+		if p.curTokenIs(token.SEMICOLON) {
+			p.nextToken()
+			continue
+		}
+		if !p.curTokenIs(token.IDENT) {
+			p.errors = append(p.errors, fmt.Sprintf("expected class member, got %s", p.curToken.Type))
+			return nil
+		}
+		nameTok := p.curToken
+		name := p.curToken.Literal
+		if p.peekTokenIs(token.LPAREN) {
+			p.nextToken()
+			fn := &ast.FunctionLiteral{Token: nameTok, Name: name}
+			fn.Parameters = p.parseFunctionParameters()
+			if p.peekTokenIs(token.COLON) {
+				p.nextToken()
+				fn.ReturnType = p.parseTypeAnnotation()
+			}
+			if !p.expectPeek(token.LBRACE) {
+				return nil
+			}
+			fn.Body = p.parseBlockStatement()
+			if name == "constructor" {
+				if stmt.Constructor != nil {
+					p.errors = append(p.errors, "duplicate constructor")
+					return nil
+				}
+				stmt.Constructor = fn
+			} else {
+				stmt.Methods = append(stmt.Methods, fn)
+			}
+		} else {
+			field := &ast.ClassField{Token: nameTok, Name: &ast.Identifier{Token: nameTok, Value: name}}
+			if p.peekTokenIs(token.COLON) {
+				p.nextToken()
+				field.Name.Type = p.parseTypeAnnotation()
+			}
+			if p.peekTokenIs(token.ASSIGN) {
+				p.nextToken()
+				p.nextToken()
+				field.Value = p.parseExpression(LOWEST)
+			}
+			if p.peekTokenIs(token.SEMICOLON) {
+				p.nextToken()
+			}
+			stmt.Fields = append(stmt.Fields, field)
+		}
+		p.nextToken()
+	}
+	return stmt
 }
 
 func (p *Parser) parseFunctionLiteral() ast.Expression {

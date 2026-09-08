@@ -124,3 +124,67 @@ func TestTemplateLiteral(t *testing.T) {
 		t.Fatalf("expressions=%d", len(tl.Expressions))
 	}
 }
+
+func TestClassNewThis(t *testing.T) {
+	input := `
+		class Point {
+			x: number;
+			y = 0;
+			constructor(x: number) {
+				this.x = x;
+			}
+			sum() {
+				return this.x + this.y;
+			}
+		}
+		new Point(1).sum();
+		this;
+	`
+	l := lexer.New(input)
+	p := New(l, true)
+	program := p.ParseProgram()
+	if len(p.Errors()) != 0 {
+		t.Fatalf("parser errors: %v", p.Errors())
+	}
+	if len(program.Statements) != 3 {
+		t.Fatalf("got %d statements", len(program.Statements))
+	}
+	cls, ok := program.Statements[0].(*ast.ClassStatement)
+	if !ok {
+		t.Fatalf("stmt 0 not ClassStatement: %T", program.Statements[0])
+	}
+	if cls.Name.Value != "Point" {
+		t.Fatalf("class name %s", cls.Name.Value)
+	}
+	if len(cls.Fields) != 2 {
+		t.Fatalf("fields=%d", len(cls.Fields))
+	}
+	if cls.Constructor == nil {
+		t.Fatal("missing constructor")
+	}
+	if len(cls.Methods) != 1 || cls.Methods[0].Name != "sum" {
+		t.Fatalf("methods=%v", cls.Methods)
+	}
+	es, ok := program.Statements[1].(*ast.ExpressionStatement)
+	if !ok {
+		t.Fatalf("stmt 1 not ExpressionStatement: %T", program.Statements[1])
+	}
+	call, ok := es.Expression.(*ast.CallExpression)
+	if !ok {
+		t.Fatalf("stmt 1 not CallExpression: %T", es.Expression)
+	}
+	dot, ok := call.Function.(*ast.InfixExpression)
+	if !ok || dot.Operator != "." {
+		t.Fatalf("expected member call, got %T", es.Expression)
+	}
+	if _, ok := dot.Left.(*ast.NewExpression); !ok {
+		t.Fatalf("callee left not NewExpression: %T", dot.Left)
+	}
+	es, ok = program.Statements[2].(*ast.ExpressionStatement)
+	if !ok {
+		t.Fatalf("stmt 2 not ExpressionStatement: %T", program.Statements[2])
+	}
+	if _, ok := es.Expression.(*ast.ThisLiteral); !ok {
+		t.Fatalf("stmt 2 not ThisLiteral: %T", es.Expression)
+	}
+}

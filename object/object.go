@@ -23,6 +23,8 @@ const (
 	BUILTIN_OBJ      = "BUILTIN"
 	HASH_OBJ         = "HASH"
 	ARRAY_OBJ        = "ARRAY"
+	CLASS_OBJ        = "CLASS"
+	BOUND_METHOD_OBJ = "BOUND_METHOD"
 )
 
 type Object interface {
@@ -92,6 +94,7 @@ type Environment struct {
 	outer      *Environment
 	Exports    map[string]Object
 	Dir        string
+	This       Object
 }
 
 func NewEnvironment() *Environment {
@@ -107,6 +110,7 @@ func NewEnclosedEnvironment(outer *Environment) *Environment {
 	env.outer = outer
 	if outer != nil {
 		env.Dir = outer.Dir
+		env.This = outer.This
 	}
 	return env
 }
@@ -205,8 +209,28 @@ type Builtin struct {
 func (b *Builtin) Type() ObjectType { return BUILTIN_OBJ }
 func (b *Builtin) Inspect() string  { return "builtin function" }
 
+type Class struct {
+	Name        string
+	Constructor *Function
+	Methods     map[string]*Function
+	Fields      []*ast.ClassField
+	Env         *Environment
+}
+
+func (c *Class) Type() ObjectType { return CLASS_OBJ }
+func (c *Class) Inspect() string  { return "[class " + c.Name + "]" }
+
+type BoundMethod struct {
+	Fn   *Function
+	This Object
+}
+
+func (b *BoundMethod) Type() ObjectType { return BOUND_METHOD_OBJ }
+func (b *BoundMethod) Inspect() string  { return b.Fn.Inspect() }
+
 type Hash struct {
 	Pairs map[string]Object
+	Class *Class
 }
 
 func (h *Hash) Type() ObjectType { return HASH_OBJ }
